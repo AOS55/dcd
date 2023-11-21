@@ -139,58 +139,58 @@ def is_discrete_actions(env, adversary=False):
         return env.action_space.__class__.__name__ == 'Discrete'
 
 
-def _make_env(args):
-    env_kwargs = {'seed': args.seed}
-    if args.singleton_env:
+def _make_env(cfg):
+    env_kwargs = {'seed': cfg.algorithm.seed}
+    if cfg.singleton_env:
         env_kwargs.update({
             'fixed_environment': True})
-    if args.env_name.startswith('CarRacing'):
+    if cfg.env_name.startswith('CarRacing'):
         env_kwargs.update({
-            'n_control_points': args.num_control_points,
-            'min_rad_ratio': args.min_rad_ratio,
-            'max_rad_ratio': args.max_rad_ratio,
-            'use_categorical': args.use_categorical_adv,
-            'use_sketch': args.use_sketch,
-            'clip_reward': args.clip_reward,
-            'sparse_rewards': args.sparse_rewards,
-            'num_goal_bins': args.num_goal_bins,
+            'n_control_points': cfg.car_racing.num_control_points,
+            'min_rad_ratio': cfg.car_racing.min_rad_ratio,
+            'max_rad_ratio': cfg.car_racing.max_rad_ratio,
+            'use_categorical': cfg.car_racing.use_categorical_adv,
+            'use_sketch': cfg.car_racing.use_sketch,
+            'clip_reward': cfg.algorithm.clip_reward,
+            'sparse_rewards': cfg.algorithm.sparse_rewards,
+            'num_goal_bins': cfg.car_racing.num_goal_bins,
         })
 
-    if args.env_name.startswith('CarRacing'):
+    if cfg.env_name.startswith('CarRacing'):
         # Hack: This TimeLimit sandwich allows truncated obs to be passed
         # up the hierarchy with all necessary preprocessing.
-        env = gym_make(args.env_name, **env_kwargs)
+        env = gym_make(cfg.env_name, **env_kwargs)
         max_episode_steps = env._max_episode_steps
-        reward_shaping = args.reward_shaping and not args.sparse_rewards
-        assert max_episode_steps % args.num_action_repeat == 0
+        reward_shaping = cfg.algorithm.reward_shaping and not cfg.algorithm.sparse_rewards
+        assert max_episode_steps % cfg.car_racing.num_action_repeat == 0
         return TimeLimit(CarRacingWrapper(env,
-                grayscale=args.grayscale, 
+                grayscale=cfg.car_racing.grayscale, 
                 reward_shaping=reward_shaping,
-                num_action_repeat=args.num_action_repeat,
-                nstack=args.frame_stack,
-                crop=args.crop_frame), 
-            max_episode_steps=max_episode_steps//args.num_action_repeat)
-    elif args.env_name.startswith('MultiGrid'):
-        env = gym_make(args.env_name, **env_kwargs)
-        if args.use_global_critic or args.use_global_policy:
+                num_action_repeat=cfg.car_racing.num_action_repeat,
+                nstack=cfg.car_racing.frame_stack,
+                crop=cfg.car_racing.crop_frame), 
+            max_episode_steps=max_episode_steps//cfg.car_racing.num_action_repeat)
+    elif cfg.env_name.startswith('MultiGrid'):
+        env = gym_make(cfg.env_name, **env_kwargs)
+        if cfg.use_global_critic or cfg.use_global_policy:
             max_episode_steps = env._max_episode_steps
             env = TimeLimit(MultiGridFullyObsWrapper(env),
                 max_episode_steps=max_episode_steps)
         return env
     else:
-        return gym_make(args.env_name, **env_kwargs)
+        return gym_make(cfg.env_name, **env_kwargs)
 
 
-def create_parallel_env(args, adversary=True):
-    is_multigrid = args.env_name.startswith('MultiGrid')
-    is_car_racing = args.env_name.startswith('CarRacing')
-    is_bipedalwalker = args.env_name.startswith('BipedalWalker')
+def create_parallel_env(cfg, adversary=True):
+    is_multigrid = cfg.env_name.startswith('MultiGrid')
+    is_car_racing = cfg.env_name.startswith('CarRacing')
+    is_bipedalwalker = cfg.env_name.startswith('BipedalWalker')
 
-    make_fn = lambda: _make_env(args)
+    make_fn = lambda: _make_env(cfg)
 
-    venv = ParallelAdversarialVecEnv([make_fn]*args.num_processes, adversary=adversary)
+    venv = ParallelAdversarialVecEnv([make_fn]*cfg.algorithm.num_processes, adversary=adversary)
     venv = VecMonitor(venv=venv, filename=None, keep_buf=100)
-    venv = VecNormalize(venv=venv, ob=False, ret=args.normalize_returns)
+    venv = VecNormalize(venv=venv, ob=False, ret=cfg.algorithm.normalize_returns)
 
     obs_key = None
     scale = None
@@ -211,10 +211,10 @@ def create_parallel_env(args, adversary=True):
     if is_multigrid or is_bipedalwalker:
         ued_venv = venv
 
-    if args.singleton_env:
-        seeds = [args.seed]*args.num_processes
+    if cfg.singleton_env:
+        seeds = [cfg.algorithm.seed]*cfg.algorithm.num_processes
     else:
-        seeds = [i for i in range(args.num_processes)]
+        seeds = [i for i in range(cfg.algorithm.num_processes)]
     venv.set_seed(seeds)
 
     return venv, ued_venv
@@ -227,26 +227,26 @@ def is_dense_reward_env(env_name):
         return False
 
 
-def make_plr_args(args, obs_space, action_space):
+def make_plr_args(cfg, obs_space, action_space):
     return dict( 
         seeds=[], 
         obs_space=obs_space, 
         action_space=action_space, 
-        num_actors=args.num_processes,
-        strategy=args.level_replay_strategy,
-        replay_schedule=args.level_replay_schedule,
-        score_transform=args.level_replay_score_transform,
-        temperature=args.level_replay_temperature,
-        eps=args.level_replay_eps,
-        rho=args.level_replay_rho,
-        replay_prob=args.level_replay_prob, 
-        alpha=args.level_replay_alpha,
-        staleness_coef=args.staleness_coef,
-        staleness_transform=args.staleness_transform,
-        staleness_temperature=args.staleness_temperature,
-        sample_full_distribution=args.train_full_distribution,
-        seed_buffer_size=args.level_replay_seed_buffer_size,
-        seed_buffer_priority=args.level_replay_seed_buffer_priority,
-        use_dense_rewards=is_dense_reward_env(args.env_name),
-        gamma=args.gamma
+        num_actors=cfg.algorithm.num_processes,
+        strategy=cfg.plr.level_replay_strategy,
+        replay_schedule=cfg.plr.level_replay_schedule,
+        score_transform=cfg.plr.level_replay_score_transform,
+        temperature=cfg.plr.level_replay_temperature,
+        eps=cfg.plr.level_replay_eps,
+        rho=cfg.plr.level_replay_rho,
+        replay_prob=cfg.plr.level_replay_prob, 
+        alpha=cfg.plr.level_replay_alpha,
+        staleness_coef=cfg.plr.staleness_coef,
+        staleness_transform=cfg.plr.staleness_transform,
+        staleness_temperature=cfg.plr.staleness_temperature,
+        sample_full_distribution=cfg.plr.train_full_distribution,
+        seed_buffer_size=cfg.plr.level_replay_seed_buffer_size,
+        seed_buffer_priority=cfg.plr.level_replay_seed_buffer_priority,
+        use_dense_rewards=is_dense_reward_env(cfg.env_name),
+        gamma=cfg.algorithm.gamma
     )

@@ -1,0 +1,17 @@
+xpid: latest
+log_dir: ~/logs/dcd/
+log_interval: 1
+checkpoint_interval: 100
+archive_interval: 0
+checkpoint_basis: num_updates
+weight_log_interval: 0
+screenshot_interval: 5000
+screenshot_batch_size: 1
+render: False
+checkpoint: False
+disable_checkpoint: False
+log_grad_norm: False
+log_action_complexity: False
+log_replay_complexity: False
+log_plr_buffer_stats: False
+verbose: False

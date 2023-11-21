@@ -157,7 +157,7 @@ def model_for_env_agent(
     return model
 
 
-def make_agent(name, env, args, device='cpu'):
+def make_agent(name, env, cfg, device='cpu'):
     # Create model instance
     is_adversary_env = 'env' in name
 
@@ -165,38 +165,38 @@ def make_agent(name, env, args, device='cpu'):
         observation_space = env.adversary_observation_space
         action_space = env.adversary_action_space
         num_steps = observation_space['time_step'].high[0]
-        recurrent_arch = args.recurrent_adversary_env and args.recurrent_arch
-        entropy_coef = args.adv_entropy_coef
-        ppo_epoch = args.adv_ppo_epoch
-        num_mini_batch = args.adv_num_mini_batch
-        max_grad_norm = args.adv_max_grad_norm
-        use_popart = vars(args).get('adv_use_popart', False)
+        recurrent_arch = cfg.architecture.recurrent_adversary_env and cfg.architecture.recurrent_arch
+        entropy_coef = cfg.algorithm.adv_entropy_coef
+        ppo_epoch = cfg.algorithm.adv_ppo_epoch
+        num_mini_batch = cfg.algorithm.adv_num_mini_batch
+        max_grad_norm = cfg.algorithm.adv_max_grad_norm
+        use_popart = vars(cfg).get('adv_use_popart', False)
     else:
         observation_space = env.observation_space
         action_space = env.action_space
-        num_steps = args.num_steps
-        recurrent_arch = args.recurrent_agent and args.recurrent_arch
-        entropy_coef = args.entropy_coef
-        ppo_epoch = args.ppo_epoch
-        num_mini_batch = args.num_mini_batch
-        max_grad_norm = args.max_grad_norm
-        use_popart = vars(args).get('use_popart', False)
+        num_steps = cfg.algorithm.num_steps
+        recurrent_arch = cfg.architecture.recurrent_agent and cfg.architecture.recurrent_arch
+        entropy_coef = cfg.algorithm.entropy_coef
+        ppo_epoch = cfg.algorithm.ppo_epoch
+        num_mini_batch = cfg.algorithm.num_mini_batch
+        max_grad_norm = cfg.algorithm.max_grad_norm
+        use_popart = vars(cfg).get('use_popart', False)
 
-    recurrent_hidden_size = args.recurrent_hidden_size
+    recurrent_hidden_size = cfg.architecture.recurrent_hidden_size
 
     actor_critic = model_for_env_agent(
-        args.env_name, env, name, 
+        cfg.env_name, env, name, 
         recurrent_arch=recurrent_arch,
         recurrent_hidden_size=recurrent_hidden_size,
-        use_global_critic=args.use_global_critic,
-        use_global_policy=vars(args).get('use_global_policy', False),
-        use_skip=vars(args).get('use_skip', False),
-        choose_start_pos=vars(args).get('choose_start_pos', False),
-        use_popart=vars(args).get('use_popart', False),
-        adv_use_popart=vars(args).get('adv_use_popart', False),
-        use_categorical_adv=vars(args).get('use_categorical_adv', False),
-        use_goal=vars(args).get('sparse_rewards', False),
-        num_goal_bins=vars(args).get('num_goal_bins', 1))
+        use_global_critic=cfg.use_global_critic,
+        use_global_policy=vars(cfg).get('use_global_policy', False),
+        use_skip=vars(cfg).get('use_skip', False),
+        choose_start_pos=vars(cfg).get('choose_start_pos', False),
+        use_popart=vars(cfg).get('use_popart', False),
+        adv_use_popart=vars(cfg).get('adv_use_popart', False),
+        use_categorical_adv=vars(cfg).get('use_categorical_adv', False),
+        use_goal=vars(cfg).get('sparse_rewards', False),
+        num_goal_bins=vars(cfg).get('num_goal_bins', 1))
 
     algo = None
     storage = None
@@ -205,33 +205,33 @@ def make_agent(name, env, args, device='cpu'):
     use_proper_time_limits = \
         hasattr(env, 'get_max_episode_steps') \
         and env.get_max_episode_steps() is not None \
-        and vars(args).get('handle_timelimits', False)
+        and vars(cfg).get('handle_timelimits', False)
 
-    if args.algo == 'ppo':
+    if cfg.algorithm.algo == 'ppo':
         # Create PPO
         algo = PPO(
             actor_critic=actor_critic,
-            clip_param=args.clip_param,
+            clip_param=cfg.algorithm.clip_param,
             ppo_epoch=ppo_epoch,
             num_mini_batch=num_mini_batch,
-            value_loss_coef=args.value_loss_coef,
+            value_loss_coef=cfg.algorithm.value_loss_coef,
             entropy_coef=entropy_coef,
-            lr=args.lr,
-            eps=args.eps,
+            lr=cfg.algorithm.lr,
+            eps=cfg.algorithm.eps,
             max_grad_norm=max_grad_norm,
-            clip_value_loss=args.clip_value_loss,
-            log_grad_norm=args.log_grad_norm
+            clip_value_loss=cfg.algorithm.clip_value_loss,
+            log_grad_norm=cfg.logging.log_grad_norm
         )
 
         # Create storage
         storage = RolloutStorage(
             model=actor_critic,
             num_steps=num_steps,
-            num_processes=args.num_processes,
+            num_processes=cfg.algorithm.num_processes,
             observation_space=observation_space,
             action_space=action_space,
-            recurrent_hidden_state_size=args.recurrent_hidden_size,
-            recurrent_arch=args.recurrent_arch,
+            recurrent_hidden_state_size=cfg.architecture.recurrent_hidden_size,
+            recurrent_arch=cfg.architecture.recurrent_arch,
             use_proper_time_limits=use_proper_time_limits,
             use_popart=use_popart
         )

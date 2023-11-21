@@ -32,7 +32,7 @@ class AdversarialRunner(object):
     """
     def __init__(
         self,
-        args,
+        cfg,
         venv,
         agent,
         ued_venv=None,
@@ -52,7 +52,7 @@ class AdversarialRunner(object):
         flexible_protagonist: Which agent plays the role of protagonist in
             calculating the regret depends on which has the lowest score.
         """
-        self.args = args
+        self.cfg = cfg
 
         self.venv = venv
         if ued_venv is None:
@@ -69,18 +69,18 @@ class AdversarialRunner(object):
             'adversary_env': adversary_env,
         }
 
-        self.agent_rollout_steps = args.num_steps
+        self.agent_rollout_steps = self.cfg.algorithm.num_steps
         self.adversary_env_rollout_steps = self.venv.adversary_observation_space['time_step'].high[0]
 
-        self.is_dr = args.ued_algo == 'domain_randomization'
-        self.is_training_env = args.ued_algo in ['paired', 'flexible_paired', 'minimax']
-        self.is_paired = args.ued_algo in ['paired', 'flexible_paired']
-        self.requires_batched_vloss = args.use_editor and args.base_levels == 'easy'
+        self.is_dr = self.cfg.ued.ued_algo == 'domain_randomization'
+        self.is_training_env = self.cfg.ued.ued_algo in ['paired', 'flexible_paired', 'minimax']
+        self.is_paired = self.cfg.ued.ued_algo in ['paired', 'flexible_paired']
+        self.requires_batched_vloss = self.cfg.accel.use_editor and self.cfg.accel.base_levels == 'easy'
 
-        self.is_alp_gmm = args.ued_algo == 'alp_gmm' 
+        self.is_alp_gmm = self.cfg.ued.ued_algo == 'alp_gmm' 
 
         # Track running mean and std of env returns for return normalization
-        if args.adv_normalize_returns:
+        if self.algorithm.adv_normalize_returns:
             self.env_return_rms = RunningMeanStd(shape=())
 
         self.device = device
@@ -100,14 +100,14 @@ class AdversarialRunner(object):
         self.latest_env_stats = defaultdict(float)
         if plr_args:
             if self.is_paired:
-                if not args.protagonist_plr and not args.antagonist_plr:
+                if not self.algorithm.protagonist_plr and not self.algorithm.antagonist_plr:
                     self.level_samplers.update({
                         'agent': LevelSampler(**plr_args),
                         'adversary_agent': LevelSampler(**plr_args)
                     })
-                elif args.protagonist_plr:
+                elif self.algorithm.protagonist_plr:
                     self.level_samplers['agent'] = LevelSampler(**plr_args)
-                elif args.antagonist_plr:
+                elif self.algorithm.antagonist_plr:
                     self.level_samplers['adversary_agent'] = LevelSampler(**plr_args)
             else:
                 self.level_samplers['agent'] = LevelSampler(**plr_args)
@@ -123,13 +123,13 @@ class AdversarialRunner(object):
             else:
                 self.level_store = LevelStore()
 
-            self.current_level_seeds = [-1 for i in range(args.num_processes)]
+            self.current_level_seeds = [-1 for i in range(self.algorithm.num_processes)]
 
             self._default_level_sampler = self.all_level_samplers[0]
 
-            self.use_editor = args.use_editor
-            self.edit_prob = args.level_editor_prob
-            self.base_levels = args.base_levels
+            self.use_editor = self.accel.use_editor
+            self.edit_prob = self.accel.level_editor_prob
+            self.base_levels = self.accel.base_levels
         else:
             self.use_editor = False
             self.edit_prob = 0
@@ -141,35 +141,35 @@ class AdversarialRunner(object):
 
     @property
     def use_byte_encoding(self):
-        env_name = self.args.env_name
-        if self.args.use_editor \
+        env_name = self.algorithm.env_name
+        if self.accel.use_editor \
            or env_name.startswith('BipedalWalker') \
-           or (env_name.startswith('MultiGrid') and self.args.use_reset_random_dr):
+           or (env_name.startswith('MultiGrid') and self.accel.use_reset_random_dr):
             return True
         else:
             return False
 
     def _init_alp_gmm(self):
-        args = self.args
+        cfg = self.cfg
         param_env_bounds = []
-        if args.env_name.startswith('MultiGrid'):
+        if self.cfg.env_name.startswith('MultiGrid'):
             param_env_bounds = {'actions':[0,168,26]}
             reward_bounds = None
-        elif args.env_name.startswith('Bipedal'):
-            if 'POET' in args.env_name:
+        elif self.cfg.env_name.startswith('Bipedal'):
+            if 'POET' in self.cfg.env_name:
                 param_env_bounds = {'actions': [0,2,5]}
             else:
                 param_env_bounds = {'actions': [0,2,8]}
             reward_bounds = (-200, 350)
         else:
-            raise ValueError(f'Environment {args.env_name} not supported for ALP-GMM')
+            raise ValueError(f'Environment {self.cfg.env_name} not supported for ALP-GMM')
 
         self.alp_gmm_teacher = TeacherController(
                     teacher='ALP-GMM',
                     nb_test_episodes=0,
                     param_env_bounds=param_env_bounds,
                     reward_bounds=reward_bounds,
-                    seed=args.seed,
+                    seed=self.algorithm.seed,
                     teacher_params={}) # Use defaults
 
     def reset(self):
@@ -239,7 +239,7 @@ class AdversarialRunner(object):
         self.level_store = state_dict.get('level_store')
         self.level_samplers = state_dict.get('level_samplers')
 
-        if self.args.use_plr:
+        if self.cfg.algorithm.use_plr:
             self._default_level_sampler = self.all_level_samplers[0]
 
             if self.use_editor:
@@ -255,8 +255,8 @@ class AdversarialRunner(object):
         return batched_value_loss
 
     def _get_rollout_return_stats(self, rollout_returns):
-        mean_return = torch.zeros(self.args.num_processes, 1)
-        max_return = torch.zeros(self.args.num_processes, 1)
+        mean_return = torch.zeros(self.cfg.algorithm.num_processes, 1)
+        max_return = torch.zeros(self.cfg.algorithm.num_processes, 1)
         for b, returns in enumerate(rollout_returns):
             if len(returns) > 0:
                 mean_return[b] = float(np.mean(returns))
@@ -342,7 +342,7 @@ class AdversarialRunner(object):
         return stats
 
     def _get_env_stats(self, agent_info, adversary_agent_info, log_replay_complexity=False):
-        env_name = self.args.env_name
+        env_name = self.cfg.env_name
         if env_name.startswith('MultiGrid'):
             stats = self._get_env_stats_multigrid(agent_info, adversary_agent_info)
         elif env_name.startswith('CarRacing'):
@@ -350,7 +350,7 @@ class AdversarialRunner(object):
         elif env_name.startswith('BipedalWalker'):
             stats = self._get_env_stats_bipedalwalker(agent_info, adversary_agent_info)
         else:
-            raise ValueError(f'Unsupported environment, {self.args.env_name}')
+            raise ValueError(f'Unsupported environment, {self.cfg.env_name}')
 
         stats_ = {}
         for k,v in stats.items():
@@ -360,9 +360,9 @@ class AdversarialRunner(object):
         return stats_
 
     def _get_active_levels(self):
-        assert self.args.use_plr, 'Only call _get_active_levels when using PLR.'
+        assert self.cfg.plr.use_plr, 'Only call _get_active_levels when using PLR.'
 
-        env_name = self.args.env_name
+        env_name = self.cfg.env_name
 
         is_multigrid = env_name.startswith('MultiGrid')
         is_car_racing = env_name.startswith('CarRacing')
@@ -400,11 +400,11 @@ class AdversarialRunner(object):
             return False
 
     def _update_plr_with_current_unseen_levels(self, parent_seeds=None):
-        args = self.args
+        cfg = self.cfg
         levels = self._get_active_levels()
         self.current_level_seeds = \
             self.level_store.insert(levels, parent_seeds=parent_seeds)
-        if args.log_plr_buffer_stats or args.reject_unsolvable_seeds:
+        if cfg.logging.log_plr_buffer_stats or cfg.plr.reject_unsolvable_seeds:
             passable = self.venv.get_passable()
         else:
             passable = None
@@ -414,7 +414,7 @@ class AdversarialRunner(object):
     def _update_level_samplers_with_external_unseen_sample(self, seeds, solvable=None):
         level_samplers = self.all_level_samplers
 
-        if self.args.reject_unsolvable_seeds:
+        if self.cfg.plr.reject_unsolvable_seeds:
             solvable = np.array(solvable, dtype=np.bool)
             seeds = np.array(seeds, dtype=np.int)[solvable]
             solvable = solvable[solvable]
@@ -451,7 +451,7 @@ class AdversarialRunner(object):
                       edit_level=False,
                       num_edits=0, 
                       fixed_seeds=None):
-        args = self.args
+        cfg = self.cfg
         if is_env:
             if edit_level: # Get mutated levels
                 levels = [self.level_store.get_level(seed) for seed in fixed_seeds]
@@ -460,26 +460,26 @@ class AdversarialRunner(object):
                 self._update_plr_with_current_unseen_levels(parent_seeds=fixed_seeds)
                 return
             if level_replay: # Get replay levels
-                self.current_level_seeds = [level_sampler.sample_replay_level() for _ in range(args.num_processes)]
+                self.current_level_seeds = [level_sampler.sample_replay_level() for _ in range(cfg.algorithm.num_processes)]
                 levels = [self.level_store.get_level(seed) for seed in self.current_level_seeds]
                 self.ued_venv.reset_to_level_batch(levels)
                 return self.current_level_seeds
-            elif self.is_dr and not args.use_plr: 
+            elif self.is_dr and not cfg.plr.use_plr: 
                 obs = self.ued_venv.reset_random() # don't need obs here
-                self.total_seeds_collected += args.num_processes
+                self.total_seeds_collected += cfg.algorithm.num_processes
                 return
-            elif self.is_dr and args.use_plr and args.use_reset_random_dr:
+            elif self.is_dr and cfg.plr.use_plr and cfg.ued.use_reset_random_dr:
                 obs = self.ued_venv.reset_random() # don't need obs here
                 self._update_plr_with_current_unseen_levels(parent_seeds=fixed_seeds)
-                self.total_seeds_collected += args.num_processes
+                self.total_seeds_collected += cfg.algorithm.num_processes
                 return
             elif self.is_alp_gmm:
                 obs = self.alp_gmm_teacher.set_env_params(self.ued_venv)
-                self.total_seeds_collected += args.num_processes
+                self.total_seeds_collected += cfg.algorithm.num_processes
                 return
             else:
                 obs = self.ued_venv.reset() # Prepare for constructive rollout
-                self.total_seeds_collected += args.num_processes
+                self.total_seeds_collected += cfg.algorithm.num_processes
         else:
             obs = self.venv.reset_agent()
 
@@ -487,15 +487,15 @@ class AdversarialRunner(object):
         agent.storage.copy_obs_to_index(obs,0)
         
         rollout_info = {}
-        rollout_returns = [[] for _ in range(args.num_processes)]
+        rollout_returns = [[] for _ in range(cfg.algorithm.num_processes)]
 
         if level_sampler and level_replay:
             rollout_info.update({
-                'solved_idx': np.zeros(args.num_processes, dtype=np.bool)
+                'solved_idx': np.zeros(cfg.algorithm.num_processes, dtype=np.bool)
             })
             
         for step in range(num_steps):
-            if args.render:
+            if cfg.logging.render:
                 self.venv.render_to_screen()
             # Sample actions
             with torch.no_grad():
@@ -508,15 +508,15 @@ class AdversarialRunner(object):
                     action_log_prob = action_log_dist
 
             # Observe reward and next obs
-            reset_random = self.is_dr and not args.use_plr
+            reset_random = self.is_dr and not cfg.plr.use_plr
             _action = agent.process_action(action.cpu())
 
             if is_env:
                 obs, reward, done, infos = self.ued_venv.step_adversary(_action)
             else:
                 obs, reward, done, infos = self.venv.step_env(_action, reset_random=reset_random)
-                if args.clip_reward:
-                    reward = torch.clamp(reward, -args.clip_reward, args.clip_reward)
+                if cfg.algorithm.clip_reward:
+                    reward = torch.clamp(reward, -cfg.algorithm.clip_reward, cfg.algorithm.clip_reward)
 
             if not is_env and step >= num_steps - 1:
                 # Handle early termination due to cliffhanger rollout
@@ -588,7 +588,7 @@ class AdversarialRunner(object):
                 self.current_level_seeds = next_level_seeds
 
         # Add generated env to level store (as a constructive string representation)
-        if is_env and args.use_plr and not level_replay:
+        if is_env and cfg.plr.use_plr and not level_replay:
             self._update_plr_with_current_unseen_levels()
 
         rollout_info.update(self._get_rollout_return_stats(rollout_returns))
@@ -602,12 +602,12 @@ class AdversarialRunner(object):
                     agent.storage.masks[-1]).detach()
 
             agent.storage.compute_returns(
-                next_value, args.use_gae, args.gamma, args.gae_lambda)
+                next_value, cfg.algorithm.use_gae, cfg.algorithm.gamma, cfg.algorithm.gae_lambda)
 
             # Compute batched value loss if using value_l1-maximizing adversary
             if self.requires_batched_vloss:
                 # Don't clip value loss reward if env adversary normalizes returns
-                clipped = not args.adv_use_popart and not args.adv_normalize_returns
+                clipped = not cfg.algorithm.adv_use_popart and not cfg.algorithm.adv_normalize_returns
                 batched_value_loss = self._get_batched_value_loss(
                     agent, clipped=clipped, batched=True)
                 rollout_info.update({'batched_value_loss': batched_value_loss})
@@ -629,18 +629,18 @@ class AdversarialRunner(object):
             })
 
             # Compute LZ complexity of action trajectories
-            if args.log_action_complexity:
+            if cfg.logging.log_action_complexity:
                 rollout_info.update({'action_complexity': agent.storage.get_action_complexity()})
 
         return rollout_info
 
     def _compute_env_return(self, agent_info, adversary_agent_info):
-        args = self.args
-        if args.ued_algo == 'paired':
+        cfg = self.cfg
+        if cfg.ued.ued_algo == 'paired':
             env_return = torch.max(adversary_agent_info['max_return'] - agent_info['mean_return'], \
                 torch.zeros_like(agent_info['mean_return']))
 
-        elif args.ued_algo == 'flexible_paired':
+        elif cfg.ued.ued_algo == 'flexible_paired':
             env_return = torch.zeros_like(agent_info['max_return'], dtype=torch.float, device=self.device)
             adversary_agent_max_idx = adversary_agent_info['max_return'] > agent_info['max_return']
             agent_max_idx = ~adversary_agent_max_idx
@@ -657,38 +657,38 @@ class AdversarialRunner(object):
 
             env_return = torch.max(env_return - env_mean_return, torch.zeros_like(env_return))
 
-        elif args.ued_algo == 'minimax':
+        elif cfg.ued.ued_algo == 'minimax':
             env_return = -agent_info['max_return']
 
         else:
             env_return = torch.zeros_like(agent_info['mean_return'])
 
-        if args.adv_normalize_returns:
+        if cfg.algorithm.adv_normalize_returns:
             self.env_return_rms.update(env_return.flatten().cpu().numpy())
             env_return /= np.sqrt(self.env_return_rms.var + 1e-8)
 
-        if args.adv_clip_reward is not None:
-            clip_max_abs = args.adv_clip_reward
+        if cfg.algorithm.adv_clip_reward is not None:
+            clip_max_abs = cfg.algorithm.adv_clip_reward
             env_return = env_return.clamp(-clip_max_abs, clip_max_abs)
         
         return env_return
 
     def run(self):
-        args = self.args
+        cfg = self.cfg
 
         adversary_env = self.agents['adversary_env']
         agent = self.agents['agent']
         adversary_agent = self.agents['adversary_agent']
 
         level_replay = False
-        if args.use_plr and self.is_training:
+        if cfg.plr.use_plr and self.is_training:
             level_replay = self._sample_replay_decision()
 
         # Discard student gradients if not level replay (sampling new levels)
         student_discard_grad = False
         no_exploratory_grad_updates = \
-            vars(args).get('no_exploratory_grad_updates', False)
-        if args.use_plr and (not level_replay) and no_exploratory_grad_updates:
+            vars(cfg).get('no_exploratory_grad_updates', False)
+        if cfg.plr.use_plr and (not level_replay) and no_exploratory_grad_updates:
             student_discard_grad = True
 
         if self.is_training and not student_discard_grad:
@@ -716,7 +716,7 @@ class AdversarialRunner(object):
             discard_grad=student_discard_grad)
 
         # Use a separate PLR curriculum for the antagonist
-        if level_replay and self.is_paired and (args.protagonist_plr == args.antagonist_plr):
+        if level_replay and self.is_paired and (cfg.plr.protagonist_plr == cfg.plr.antagonist_plr):
             self.agent_rollout(
                 agent=adversary_env, 
                 num_steps=self.adversary_env_rollout_steps, 
@@ -750,7 +750,7 @@ class AdversarialRunner(object):
         else:
             sampled_level_info = {
                 'level_replay': False,
-                'num_edits': [0 for _ in range(args.num_processes)]
+                'num_edits': [0 for _ in range(cfg.algorithm.num_processes)]
             }
 
         # ==== This part performs ACCEL ====
@@ -760,14 +760,14 @@ class AdversarialRunner(object):
             if self.base_levels == 'batch':
                 fixed_seeds = env_info
             elif self.base_levels == 'easy':
-                if args.num_processes >= 4:
+                if cfg.algorithm.num_processes >= 4:
                     # take top 4
                     easy = list(np.argsort((agent_info['mean_return'].detach().cpu().numpy() - agent_info['batched_value_loss'].detach().cpu().numpy()).flatten())[:4])
-                    fixed_seeds = [env_info[x.item()] for x in easy] * int(args.num_processes/4)
+                    fixed_seeds = [env_info[x.item()] for x in easy] * int(cfg.algorithm.num_processes/4)
                 else:
                     # take top 1
                     easy = np.argmax((agent_info['mean_return'].detach().cpu().numpy() - agent_info['batched_value_loss'].detach().cpu().numpy()).flatten())
-                    fixed_seeds = [env_info[easy]] * args.num_processes
+                    fixed_seeds = [env_info[easy]] * cfg.algorithm.num_processes
 
             level_sampler, is_updateable = self._get_level_sampler('agent')
 
@@ -777,7 +777,7 @@ class AdversarialRunner(object):
                 num_steps=None,
                 is_env=True,
                 edit_level=True,
-                num_edits=args.num_edits,
+                num_edits=cfg.accel.num_edits,
                 fixed_seeds=fixed_seeds)
 
             self.total_num_edits += 1
@@ -794,7 +794,7 @@ class AdversarialRunner(object):
                 discard_grad=True)
         # ==== ACCEL end ====
 
-        if args.use_plr:
+        if cfg.plr.use_plr:
             self._reconcile_level_store_and_samplers()
             if self.use_editor:
                 self.weighted_num_edits = self._get_weighted_num_edits()
@@ -810,7 +810,7 @@ class AdversarialRunner(object):
                     obs_id, adversary_env.storage.get_recurrent_hidden_state(-1),
                     adversary_env.storage.masks[-1]).detach()
             adversary_env.storage.replace_final_return(env_return)
-            adversary_env.storage.compute_returns(next_value, args.use_gae, args.gamma, args.gae_lambda)
+            adversary_env.storage.compute_returns(next_value, cfg.algorithm.use_gae, cfg.algorithm.gamma, cfg.algorithm.gae_lambda)
             env_value_loss, env_action_loss, env_dist_entropy, info = adversary_env.update()
             adversary_env_info.update({
                 'action_loss': env_action_loss,
@@ -824,7 +824,7 @@ class AdversarialRunner(object):
 
         # === LOGGING ===
         # Only update env-related stats when run generates new envs (not level replay)
-        log_replay_complexity = level_replay and args.log_replay_complexity
+        log_replay_complexity = level_replay and cfg.logger.log_replay_complexity
         if (not level_replay) or log_replay_complexity:
             stats = self._get_env_stats(agent_info, adversary_agent_info, 
                 log_replay_complexity=log_replay_complexity)
@@ -834,13 +834,13 @@ class AdversarialRunner(object):
                 'adversary_env_value_loss': adversary_env_info['value_loss'],
                 'adversary_env_dist_entropy': adversary_env_info['dist_entropy'],
             })
-            if args.use_plr:
+            if cfg.plr.use_plr:
                 self.latest_env_stats.update(stats) # Log latest UED curriculum stats instead of PLR env stats
         else:
             stats = self.latest_env_stats.copy()
 
         # Log PLR buffer stats
-        if args.use_plr and args.log_plr_buffer_stats:
+        if cfg.plr.use_plr and cfg.logging.log_plr_buffer_stats:
             stats.update(self._get_plr_buffer_stats())
 
         [self.agent_returns.append(r) for b in agent_info['returns'] for r in reversed(b)]
@@ -857,7 +857,7 @@ class AdversarialRunner(object):
         self.sampled_level_info = sampled_level_info
 
         stats.update({
-            'steps': (self.num_updates + self.total_num_edits) * args.num_processes * args.num_steps,
+            'steps': (self.num_updates + self.total_num_edits) * cfg.algorithm.num_processes * cfg.algorithm.num_steps,
             'total_episodes': self.total_episodes_collected,
             'total_seeds': self.total_seeds_collected,
             'total_student_grad_updates': self.student_grad_updates,
@@ -873,7 +873,7 @@ class AdversarialRunner(object):
             'adversary_dist_entropy': adversary_agent_info['dist_entropy'],
         })
 
-        if args.log_grad_norm:
+        if cfg.logging.log_grad_norm:
             agent_grad_norm = np.mean(agent_info['update_info']['grad_norms'])
             adversary_grad_norm = 0
             adversary_env_grad_norm = 0
@@ -887,7 +887,7 @@ class AdversarialRunner(object):
                 'adversary_env_grad_norm': adversary_env_grad_norm
             })
 
-        if args.log_action_complexity:
+        if cfg.logging.log_action_complexity:
             stats.update({
                 'agent_action_complexity': agent_info['action_complexity'],
                 'adversary_action_complexity': adversary_agent_info['action_complexity']  

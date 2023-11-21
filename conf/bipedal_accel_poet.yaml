@@ -1,0 +1,106 @@
+defaults:
+  - override hydra/launcher: submitit_local
+
+# Env settings
+env_name: BipedalWalker-POET-Easy-v0
+seed: 1
+
+# UED Train settings
+ued_algo: domain_randomization
+protagonist_plr: False
+antagonist_plr: False
+use_reset_random_dr: False
+num_processes: 32
+num_env_steps: 2000000000
+num_steps: 2048
+ppo_epoch: 5
+adv_ppo_epoch: 5
+num_mini_batch: 32
+adv_num_mini_batch: 32
+normalize_returns: True
+adv_normalize_returns: False
+clip_reward: None
+use_popart: False
+adv_use_popart: False
+
+# Checkpoint settings
+checkpoint_basis: student_grad_updates
+archive_interval: 5000
+
+# Recurrent agent
+recurrent_agent: False
+recurrent_arch: lstm
+recurrent_adversary_agent: False
+recurrent_hidden_size: 1
+
+# Algo (PPO) settings
+algo: ppo
+lr: 0.0003
+eps: 0.00001
+alpha: 0.99
+gamma: 0.995
+use_gae: True
+gae_lambda: 0.9
+value_loss_coef: 0.5
+max_grad_norm: 0.5
+adv_max_grad_norm: 0.5
+entropy_coef: 0.001
+adv_entropy_coef: 0.01
+clip_value_loss: False
+clip_param: 0.2
+reward_shaping: True
+use_categorical_adv: True
+use_skip: False
+choose_start_pos: False
+sparse_rewards: False
+handle_timelimits: True
+
+
+# Prioritized Level Replay (PLR) settings
+use_plr: True
+level_replay_strategy: positive_value_loss
+level_replay_eps: 0.05
+level_replay_score_transform: rank
+level_replay_temperature: 0.1
+level_replay_schedule: proportionate
+level_replay_prob: 0.9
+level_replay_rho: 0.5
+level_replay_alpha: 1.0
+level_replay_seed_buffer_size: 1000
+level_replay_seed_buffer_priority: replay_support
+reject_unsolvable_seeds: False
+staleness_coef: 0.5
+staleness_temp: 1.0
+train_full_distribution: True
+no_exploratory_grad_updates: True
+
+# Level editor settings
+use_editor: True
+level_editor_prob: 1.0
+level_editor_method: random
+num_edits: 3
+base_levels: easy
+
+# Name of test_envs
+test_env_names:
+  - BipedalWalker-v3
+  - BipedalWalkerHardcore-v3
+  - BipedalWalker-Med-Stairs-v0
+  - BipedalWalker-Med-PitGap-v0
+  - BipedalWalker-Med-StumpHeight-v0
+  - BipedalWalker-Med-Roughness-v0
+
+# Log dir settings
+log_dir: "logs/accel"
+log_interval: 10
+test_interval: 100
+test_num_episodes: 10
+test_num_processes: 2
+screenshot_interval: 200
+log_plr_buffer_stats: True
+log_replay_complexity: True
+checkpoint: True
+
+# Logger Settings
+log_action_complexity: False
+log_grad_norm: True

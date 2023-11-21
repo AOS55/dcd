@@ -19,3 +19,4 @@ scikit-learn==1.1.1
 torchvision==0.11.2
 treelib==1.6.1
 pyglet
+hydra-submitit-launcher

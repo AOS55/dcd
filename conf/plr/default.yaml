@@ -1,0 +1,17 @@
+use_plr: False
+level_replay_strategy: value_l1
+level_replay_eps: 0.05
+level_replay_score_transform: rank
+level_replay_temperature: 0.1
+level_replay_schedule: proportionate
+level_replay_rho: 1.0
+level_replay_prob: 0.0
+level_replay_alpha: 1.0
+staleness_coef: 0.3
+staleness_transform: power
+staleness_temperature: 1.0
+train_full_distribution: 1.0
+level_replay_seed_buffer_size: 4000
+level_replay_seed_buffer_priority: replay_support
+reject_unsolvable_seeds: False
+no_exploratory_grad_updates: False

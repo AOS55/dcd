@@ -1,0 +1,5 @@
+use_editor: False
+level_editor_prob: 0.0
+level_editor_method: random
+base_levels: batch
+num_edits: 0

@@ -1,0 +1,5 @@
+recurrent_agent: False
+recurrent_arch: lstm
+recurrent_adversary_env: False
+recurrent_adversary_agent: False
+recurrent_hidden_size: 1

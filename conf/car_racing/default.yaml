@@ -1,0 +1,14 @@
+grayscale: False
+crop_frame: False
+reward_shaping: False
+num_action_repeat: 1
+frame_stack: 1
+num_control_points: 12
+min_rad_ratio: 0.333333333
+max_rad_ratio: 1.0
+use_skip: False
+choose_start_pos: False
+use_sketch: False
+use_categorical_adv: False
+sparse_rewards: False
+num_goal_bins: 1

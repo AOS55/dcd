@@ -1,0 +1,32 @@
+defaults:
+  - algorithm/ppo
+  - architecture/rnn
+  - ued/paired
+  - plr/default
+  - logging/default
+  - car_racing/default
+  - override hydra/launcher: submitit_local
+
+# Fine-tuning arguments
+xpid_finetune: False
+model_finetune: model
+
+# Hardware arguments
+no_cuda: False
+
+# Evaluation arguments
+test_interval: 250
+test_num_episodes: 10
+test_num_processes: 2
+test_env_names:
+  - MultiGrid-SixteenRooms-v0
+  - MultiGrid-Labyrinth-v0
+  - MultiGrid-Maze-v0
+
+# Environment arguments
+env_name: MultiGrid-GoalLastAdversarial-v0
+handle_timelimits: False
+singleton_env: False
+use_global_critic: False
+use_global_policy: False
+
