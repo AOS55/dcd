@@ -80,7 +80,7 @@ class AdversarialRunner(object):
         self.is_alp_gmm = self.cfg.ued.ued_algo == 'alp_gmm' 
 
         # Track running mean and std of env returns for return normalization
-        if self.algorithm.adv_normalize_returns:
+        if self.cfg.algorithm.adv_normalize_returns:
             self.env_return_rms = RunningMeanStd(shape=())
 
         self.device = device
@@ -100,14 +100,14 @@ class AdversarialRunner(object):
         self.latest_env_stats = defaultdict(float)
         if plr_args:
             if self.is_paired:
-                if not self.algorithm.protagonist_plr and not self.algorithm.antagonist_plr:
+                if not self.cfg.algorithm.protagonist_plr and not self.cfg.algorithm.antagonist_plr:
                     self.level_samplers.update({
                         'agent': LevelSampler(**plr_args),
                         'adversary_agent': LevelSampler(**plr_args)
                     })
-                elif self.algorithm.protagonist_plr:
+                elif self.cfg.algorithm.protagonist_plr:
                     self.level_samplers['agent'] = LevelSampler(**plr_args)
-                elif self.algorithm.antagonist_plr:
+                elif self.cfg.algorithm.antagonist_plr:
                     self.level_samplers['adversary_agent'] = LevelSampler(**plr_args)
             else:
                 self.level_samplers['agent'] = LevelSampler(**plr_args)
@@ -123,13 +123,13 @@ class AdversarialRunner(object):
             else:
                 self.level_store = LevelStore()
 
-            self.current_level_seeds = [-1 for i in range(self.algorithm.num_processes)]
+            self.current_level_seeds = [-1 for i in range(self.cfg.algorithm.num_processes)]
 
             self._default_level_sampler = self.all_level_samplers[0]
 
-            self.use_editor = self.accel.use_editor
-            self.edit_prob = self.accel.level_editor_prob
-            self.base_levels = self.accel.base_levels
+            self.use_editor = self.cfg.accel.use_editor
+            self.edit_prob = self.cfg.accel.level_editor_prob
+            self.base_levels = self.cfg.accel.base_levels
         else:
             self.use_editor = False
             self.edit_prob = 0
@@ -141,10 +141,10 @@ class AdversarialRunner(object):
 
     @property
     def use_byte_encoding(self):
-        env_name = self.algorithm.env_name
-        if self.accel.use_editor \
+        env_name = self.cfg.env_name
+        if self.cfg.accel.use_editor \
            or env_name.startswith('BipedalWalker') \
-           or (env_name.startswith('MultiGrid') and self.accel.use_reset_random_dr):
+           or (env_name.startswith('MultiGrid') and self.cfg.accel.use_reset_random_dr):
             return True
         else:
             return False
@@ -169,7 +169,7 @@ class AdversarialRunner(object):
                     nb_test_episodes=0,
                     param_env_bounds=param_env_bounds,
                     reward_bounds=reward_bounds,
-                    seed=self.algorithm.seed,
+                    seed=self.cfg.algorithm.seed,
                     teacher_params={}) # Use defaults
 
     def reset(self):
