@@ -47,18 +47,12 @@ class Workspace:
         if self.cfg.logging.xpid is None:
             self.cfg.logging.xpid = "lr-%s" % time.strftime("%Y%m%d-%H%M%S")
         self.log_dir = os.path.expandvars(os.path.expanduser(self.cfg.logging.log_dir))
-        filewriter = FileWriter(
+        self.filewriter = FileWriter(
             xpid=self.cfg.logging.xpid, xp_args=self.cfg.__dict__, rootdir=self.log_dir
         )
         self.screenshot_dir = os.path.join(self.log_dir, self.cfg.logging.xpid, 'screenshots')
         if not os.path.exists(self.screenshot_dir):
             os.makedirs(self.screenshot_dir, exist_ok=True)
-
-        def log_stats(stats):
-            filewriter.log(stats)
-            if self.cfg.logging.verbose:
-                HumanOutputFormat(sys.stdout).writekvs(stats)
-
         if self.cfg.logging.verbose:
             logging.getLogger().setLevel(logging.INFO)
         else:
@@ -84,7 +78,7 @@ class Workspace:
 
         if is_training_env:
             self.adversary_env = make_agent(name='adversary_env', env=self.venv, cfg=self.cfg, device=self.device)
-        if self.cfg.ued.ued_algo == 'domain_randomization' and self.cfg.plr.use_plr and not self.cfg.use_reset_random_dr:
+        if self.cfg.ued.ued_algo == 'domain_randomization' and self.cfg.plr.use_plr and not self.cfg.ued.use_reset_random_dr:
             self.adversary_env = make_agent(name='adversary_env', env=self.venv, cfg=self.cfg, device=self.device)
             self.adversary_env.random()
 
@@ -93,7 +87,7 @@ class Workspace:
         if self.cfg.plr.use_plr:
             plr_args = make_plr_args(self.cfg, self.venv.observation_space, self.venv.action_space)
         self.train_runner = AdversarialRunner(
-            args=self.cfg,
+            cfg=self.cfg,
             venv=self.venv,
             agent=self.agent, 
             ued_venv=self.ued_venv, 
@@ -147,7 +141,7 @@ class Workspace:
         self.evaluator = None
         if self.cfg.test_env_names:
             self.evaluator = Evaluator(
-                self.cfg.test_env_names.split(','), 
+                self.cfg.test_env_names, 
                 num_processes=self.cfg.test_num_processes, 
                 num_episodes=self.cfg.test_num_episodes,
                 frame_stack=self.cfg.car_racing.frame_stack,
@@ -161,7 +155,7 @@ class Workspace:
         # === Train === 
         last_checkpoint_idx = getattr(self.train_runner, self.cfg.logging.checkpoint_basis)
         update_start_time = self.timer()
-        num_updates = int(self.cfg.num_env_steps) // self.cfg.algorithm.num_steps // self.cfg.algorithm.num_processes
+        num_updates = int(self.cfg.algorithm.num_env_steps) // self.cfg.algorithm.num_steps // self.cfg.algorithm.num_processes
         for j in range(self.initial_update_count, num_updates):
             stats = self.train_runner.run()
 
@@ -210,7 +204,7 @@ class Workspace:
                 if self.cfg.env_name.startswith('BipedalWalker'):
                     encodings = self.venv.get_level()
                     df = bipedalwalker_df_from_encodings(self.cfg.env_name, encodings)
-                    if self.cfg.use_editor and level_info:
+                    if self.cfg.accel.use_editor and level_info:
                         df.to_csv(os.path.join(
                             self.screenshot_dir, 
                             f"update{j}-replay{level_info['level_replay']}-n_edits{level_info['num_edits'][0]}.csv"))
@@ -241,10 +235,16 @@ class Workspace:
         if display:
             display.stop()
 
-@hydra.main(config_path='conf/.', config_name='bipedal_accel')
+    def log_stats(self, stats):
+        self.filewriter.log(stats)
+        if self.cfg.logging.verbose:
+            HumanOutputFormat(sys.stdout).writekvs(stats)
+
+@hydra.main(config_path='conf/.', config_name='bipedal_accel', version_base="1.1")
 def main(cfg):
     from train import Workspace as W
     workspace = W(cfg)
+    workspace.train()
 
 if __name__ == '__main__':
     main()
