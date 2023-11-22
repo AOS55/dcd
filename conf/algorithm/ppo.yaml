@@ -23,8 +23,8 @@ num_mini_batch: 1
 adv_num_mini_batch: 1
 clip_param: 0.2
 clip_value_loss: False
-clip_reward: None
-adv_clip_reward: None
+clip_reward: False
+adv_clip_reward: False
 num_env_steps: 500000
 reward_shaping: True
 use_categorical_adv: True
