@@ -112,20 +112,10 @@ class Workspace:
                 os.path.expanduser("%s/%s/%s" % (self.log_dir, self.cfg.xpid_finetune, model_fname))
             )
 
-        def checkpoint(index=None):
-            if self.cfg.logging.disable_checkpoint:
-                return
-            safe_checkpoint({'runner_state_dict': self.train_runner.state_dict()}, 
-                            self.checkpoint_path,
-                            index=index, 
-                            archive_interval=self.cfg.archive_interval)
-            logging.info("Saved checkpoint to %s", self.checkpoint_path)
-
-
         # === Load checkpoint ===
         if self.cfg.logging.checkpoint and os.path.exists(self.checkpoint_path):
             self.checkpoint_states = torch.load(self.checkpoint_path, map_location=lambda storage, loc: storage)
-            self.last_logged_update_at_restart = filewriter.latest_tick() # ticks are 0-indexed updates
+            self.last_logged_update_at_restart = self.filewriter.latest_tick() # ticks are 0-indexed updates
             self.train_runner.load_state_dict(self.checkpoint_states['runner_state_dict'])
             self.initial_update_count = self.train_runner.num_updates
             logging.info(f"Resuming preempted job after {self.initial_update_count} updates\n") # 0-indexed next update
@@ -240,7 +230,16 @@ class Workspace:
         if self.cfg.logging.verbose:
             HumanOutputFormat(sys.stdout).writekvs(stats)
 
-@hydra.main(config_path='conf/.', config_name='bipedal_accel', version_base="1.1")
+    def checkpoint(self, index=None):
+        if self.cfg.logging.disable_checkpoint:
+            return
+        safe_checkpoint({'runner_state_dict': self.train_runner.state_dict()}, 
+                        self.checkpoint_path,
+                        index=index, 
+                        archive_interval=self.cfg.logging.archive_interval)
+        logging.info("Saved checkpoint to %s", self.checkpoint_path)
+
+@hydra.main(config_path='conf/.', config_name='mg_25b_dr', version_base="1.1")
 def main(cfg):
     from train import Workspace as W
     workspace = W(cfg)
