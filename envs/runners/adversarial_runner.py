@@ -144,7 +144,7 @@ class AdversarialRunner(object):
         env_name = self.cfg.env_name
         if self.cfg.accel.use_editor \
            or env_name.startswith('BipedalWalker') \
-           or (env_name.startswith('MultiGrid') and self.cfg.accel.use_reset_random_dr):
+           or (env_name.startswith('MultiGrid') and self.cfg.ued.use_reset_random_dr):
             return True
         else:
             return False
@@ -824,7 +824,7 @@ class AdversarialRunner(object):
 
         # === LOGGING ===
         # Only update env-related stats when run generates new envs (not level replay)
-        log_replay_complexity = level_replay and cfg.logger.log_replay_complexity
+        log_replay_complexity = level_replay and cfg.logging.log_replay_complexity
         if (not level_replay) or log_replay_complexity:
             stats = self._get_env_stats(agent_info, adversary_agent_info, 
                 log_replay_complexity=log_replay_complexity)
