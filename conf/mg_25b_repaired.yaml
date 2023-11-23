@@ -1,0 +1,82 @@
+defaults:
+  - algorithm/ppo
+  - architecture/rnn
+  - ued/paired
+  - plr/default
+  - logging/default
+  - car_racing/default
+  - override hydra/launcher: submitit_local
+
+# Fine-tuning arguments
+xpid_finetune: False
+model_finetune: model
+
+# Hardware arguments
+no_cuda: False
+
+# Evaluation arguments
+test_interval: 250
+test_num_episodes: 10
+test_num_processes: 2
+test_env_names:
+  - MultiGrid-SixteenRooms-v0
+  - MultiGrid-Labyrinth-v0
+  - MultiGrid-Maze-v0
+
+# Environment arguments
+env_name: MultiGrid-GoalLastFewerBlocksAdversarial-v0
+handle_timelimits: True
+singleton_env: False
+use_global_critic: False
+use_global_policy: False
+
+# Override algo values
+algorithm:
+  lr: 0.0001
+  gamma: 0.995
+  entropy_coef: 0.0
+  adv_entropy_coef: 0.0
+  num_steps: 256
+  num_processes: 32
+  num_env_steps: 250000000
+  ppo_epoch: 5
+  num_mini_batch: 1
+  value_loss_coef: 0.5
+  clip_param: 0.2
+  clip_value_loss: True
+  adv_entropy_coef: 0.0
+  max_grad_norm: 0.5
+
+architecture:
+  recurrent_arch: lstm
+  recurrent_agent: True
+  recurrent_adversary_env: False
+  recurrent_hidden_size: 256
+  
+plr:
+  use_plr: True
+  level_replay_prob: 0.95
+  level_replay_rho: 0.5
+  level_replay_seed_buffer_size: 4000
+  level_replay_strategy: grounded_signed_value_loss
+  level_replay_score_transform: rank
+  level_replay_temperature: 0.1
+  staleness_coef: 0.3
+  no_exploratory_grad_updates: True
+
+accel:
+  use_editor: False
+  level_editor_prob: 0
+  level_editor_method: random
+  num_edits: 0
+  base_levels: batch
+
+logging:
+  log_dir: "~/logs/dcd/minigrid/repaired"
+  log_interval: 25
+  log_action_complexity: True
+  archive_interval: 30518
+  log_plr_buffer_stats: True
+  log_replay_complexity: True
+  reject_unsolvable_seeds: False
+  checkpoint: True
