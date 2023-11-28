@@ -44,7 +44,6 @@ algorithm:
   value_loss_coef: 0.5
   clip_param: 0.2
   clip_value_loss: True
-  adv_entropy_coef: 0.0
   max_grad_norm: 0.5
 
 architecture:
