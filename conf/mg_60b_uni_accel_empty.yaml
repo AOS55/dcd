@@ -24,7 +24,7 @@ test_env_names:
   - MultiGrid-Maze-v0
 
 # Environment arguments
-env_name: MultiGrid-GoalLastFewerBlocksAdversarial-v0
+env_name: MultiGrid-GoalLastEmptyAdversarialEnv-Edit-v0
 handle_timelimits: True
 singleton_env: False
 use_global_critic: False
@@ -71,7 +71,7 @@ accel:
   base_levels: easy
 
 logging:
-  log_dir: "~/logs/dcd/minigrid/paired"
+  log_dir: "~/logs/dcd/minigrid/accel"
   log_interval: 25
   log_action_complexity: True
   archive_interval: 5000
