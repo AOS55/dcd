@@ -100,7 +100,7 @@ class AdversarialRunner(object):
         self.latest_env_stats = defaultdict(float)
         if plr_args:
             if self.is_paired:
-                if not self.cfg.algorithm.protagonist_plr and not self.cfg.algorithm.antagonist_plr:
+                if not self.cfg.ued.protagonist_plr and not self.cfg.ued.antagonist_plr:
                     self.level_samplers.update({
                         'agent': LevelSampler(**plr_args),
                         'adversary_agent': LevelSampler(**plr_args)
@@ -239,7 +239,7 @@ class AdversarialRunner(object):
         self.level_store = state_dict.get('level_store')
         self.level_samplers = state_dict.get('level_samplers')
 
-        if self.cfg.algorithm.use_plr:
+        if self.cfg.plr.use_plr:
             self._default_level_sampler = self.all_level_samplers[0]
 
             if self.use_editor:
