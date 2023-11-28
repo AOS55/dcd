@@ -80,3 +80,4 @@ logging:
   log_replay_complexity: True
   reject_unsolvable_seeds: False
   checkpoint: True
+  checkpoint_basis: student_grad_updates
