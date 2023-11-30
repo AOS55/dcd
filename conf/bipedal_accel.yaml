@@ -4,6 +4,7 @@ defaults:
   - ued/domain_randomization
   - plr/default
   - logging/default
+  - accel/default
   - car_racing/default
   - override hydra/launcher: submitit_local
 
@@ -27,7 +28,7 @@ test_env_names:
   - BipedalWalker-Med-Roughness-v0
 
 # Environment arguments
-env_name: BipedalWalker-Adversarial-v0
+env_name: BipedalWalker-Adversarial-Easy-v0
 handle_timelimits: True
 singleton_env: False
 use_global_critic: False
