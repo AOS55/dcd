@@ -3,6 +3,7 @@ defaults:
   - architecture/rnn
   - ued/domain_randomization
   - plr/default
+  - accel/default
   - logging/default
   - car_racing/default
   - override hydra/launcher: submitit_local
