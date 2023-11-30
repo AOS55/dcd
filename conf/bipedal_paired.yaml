@@ -4,6 +4,7 @@ defaults:
   - ued/paired
   - plr/default
   - logging/default
+  - accel/default
   - car_racing/default
   - override hydra/launcher: submitit_local
 
