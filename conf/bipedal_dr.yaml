@@ -77,7 +77,7 @@ plr:
   no_exploratory_grad_updates: False
 
 logging:
-  log_dir: ~/logs/accel
+  log_dir: ~/logs/dcd/bipedal/dr
   log_interval: 10
   test_interval: 100
   test_num_episodes: 10

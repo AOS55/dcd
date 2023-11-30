@@ -79,7 +79,7 @@ accel:
   base_levels: easy
 
 logging:
-  log_dir: ~/logs/accel
+  log_dir: ~/logs/dcd/bipedal/poet_accel
   log_interval: 10
   test_interval: 100
   test_num_episodes: 10
