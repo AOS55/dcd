@@ -15,6 +15,7 @@ model_finetune: model
 no_cuda: False
 
 # Evaluation arguments
+record_video: False
 test_interval: 250
 test_num_episodes: 10
 test_num_processes: 2
