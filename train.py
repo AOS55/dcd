@@ -134,6 +134,7 @@ class Workspace:
                 self.cfg.test_env_names, 
                 num_processes=self.cfg.test_num_processes, 
                 num_episodes=self.cfg.test_num_episodes,
+                record_video=self.cfg.record_video, 
                 frame_stack=self.cfg.car_racing.frame_stack,
                 grayscale=self.cfg.car_racing.grayscale,
                 num_action_repeat=self.cfg.car_racing.num_action_repeat,
