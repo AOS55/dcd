@@ -483,6 +483,11 @@ class AdversarialRunner(object):
         else:
             obs = self.venv.reset_agent()
 
+        # Init Meta in obs        
+        if self.cfg.reward_free:
+            skill = agent.algo.init_meta(self.cfg.algorithm.num_processes)
+            obs = {**obs, **skill}
+
         # Initialize first observation
         agent.storage.copy_obs_to_index(obs,0)
         
@@ -518,6 +523,12 @@ class AdversarialRunner(object):
                 if cfg.algorithm.clip_reward:
                     reward = torch.clamp(reward, -cfg.algorithm.clip_reward, cfg.algorithm.clip_reward)
 
+            # TODO: get intrinsic reward if using unsupervised RL algo
+            if self.cfg.reward_free:
+                with torch.no_grad():
+                    reward = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
+                    obs = {**obs, **skill}
+
             if not is_env and step >= num_steps - 1:
                 # Handle early termination due to cliffhanger rollout
                 if agent.storage.use_proper_time_limits:
@@ -526,7 +537,7 @@ class AdversarialRunner(object):
                             infos[i]['cliffhanger'] = True
                             infos[i]['truncated'] = True
                             infos[i]['truncated_obs'] = get_obs_at_index(obs, i)
-
+            
                 done = np.ones_like(done, dtype=np.float)
 
             if level_sampler and level_replay:
@@ -586,6 +597,12 @@ class AdversarialRunner(object):
 
             if level_sampler and level_replay:
                 self.current_level_seeds = next_level_seeds
+
+            # Update skills/meta if done
+            if self.cfg.reward_free:
+                for idx in range(masks.shape[1]):
+                    if masks[idx] == 0.0:
+                        skill["skill"][idx] = agent.algo.update_meta()
 
         # Add generated env to level store (as a constructive string representation)
         if is_env and cfg.plr.use_plr and not level_replay:
