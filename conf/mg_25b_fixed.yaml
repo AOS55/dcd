@@ -29,6 +29,12 @@ singleton_env: True
 use_global_critic: False
 use_global_policy: False
 
+# DIAYN
+reward_free: False 
+skill_dim: 0
+update_skill_every_step: False
+update_encoder: False
+
 # Override algo values
 algorithm:
   lr: 0.0001
