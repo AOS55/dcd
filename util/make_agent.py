@@ -4,7 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from algos import PPO, RolloutStorage, ACAgent
+from algos import PPO, DIAYN, Discriminator, RolloutStorage, ACAgent
 from models import \
     MultigridNetwork, MultigridGlobalCriticNetwork, \
     CarRacingNetwork, \
@@ -14,6 +14,7 @@ from models import \
 
 def model_for_multigrid_agent(
     env,
+    skill_dim=0,
     agent_type='agent',
     recurrent_arch=None,
     recurrent_hidden_size=256,
@@ -30,6 +31,7 @@ def model_for_multigrid_agent(
             action_space=adversary_action_space,
             conv_filters=128,
             scalar_fc=10,
+            skill_dim=skill_dim,
             scalar_dim=adversary_max_timestep,
             random_z_dim=adversary_random_z_dim,
             recurrent_arch=recurrent_arch,
@@ -42,6 +44,7 @@ def model_for_multigrid_agent(
             observation_space=observation_space, 
             action_space=action_space,
             scalar_fc=5,
+            skill_dim=skill_dim,
             scalar_dim=num_directions,
             recurrent_arch=recurrent_arch,
             recurrent_hidden_size=recurrent_hidden_size)
@@ -114,6 +117,7 @@ def model_for_env_agent(
     env_name,
     env,
     agent_type='agent',
+    skill_dim=0,
     recurrent_arch=None,
     recurrent_hidden_size=256,
     use_global_critic=False,
@@ -130,6 +134,7 @@ def model_for_env_agent(
     if env_name.startswith('MultiGrid'):
         model = model_for_multigrid_agent(
             env=env, 
+            skill_dim=skill_dim,
             agent_type=agent_type,
             recurrent_arch=recurrent_arch,
             recurrent_hidden_size=recurrent_hidden_size,
@@ -185,7 +190,8 @@ def make_agent(name, env, cfg, device='cpu'):
     recurrent_hidden_size = cfg.architecture.recurrent_hidden_size
 
     actor_critic = model_for_env_agent(
-        cfg.env_name, env, name, 
+        cfg.env_name, env, name,
+        skill_dim=cfg.skill_dim, 
         recurrent_arch=recurrent_arch,
         recurrent_hidden_size=recurrent_hidden_size,
         use_global_critic=cfg.use_global_critic,
@@ -230,6 +236,49 @@ def make_agent(name, env, cfg, device='cpu'):
             num_processes=cfg.algorithm.num_processes,
             observation_space=observation_space,
             action_space=action_space,
+            recurrent_hidden_state_size=cfg.architecture.recurrent_hidden_size,
+            recurrent_arch=cfg.architecture.recurrent_arch,
+            use_proper_time_limits=use_proper_time_limits,
+            use_popart=use_popart
+        )
+
+        agent = ACAgent(algo=algo, storage=storage).to(device)
+
+    elif cfg.algorithm.algo == 'diayn':
+        
+        # Create discriminator
+        discriminator = Discriminator(
+            obs_dim=actor_critic.preprocessed_input_size-cfg.skill_dim,
+            skill_dim=cfg.skill_dim,
+            hidden_dim=cfg.hidden_dim
+        ).to(device)
+
+        # Create PPO based DIAYN
+        algo = DIAYN(
+            actor_critic=actor_critic,
+            discriminator=discriminator,
+            skill_dim=cfg.skill_dim,
+            update_encoder=cfg.update_encoder,
+            clip_param=cfg.algorithm.clip_param,
+            ppo_epoch=ppo_epoch,
+            num_mini_batch=num_mini_batch,
+            value_loss_coef=cfg.algorithm.value_loss_coef,
+            entropy_coef=entropy_coef,
+            lr=cfg.algorithm.lr,
+            eps=cfg.algorithm.lr,
+            max_grad_norm=max_grad_norm,
+            clip_value_loss=cfg.algorithm.clip_value_loss,
+            log_grad_norm=cfg.logging.log_grad_norm
+        )
+
+        # Create storage
+        storage = RolloutStorage(
+            model=actor_critic,
+            num_steps=num_steps,
+            num_processes=cfg.algorithm.num_processes,
+            observation_space=observation_space,
+            action_space=action_space,
+            skill_dim=cfg.skill_dim,
             recurrent_hidden_state_size=cfg.architecture.recurrent_hidden_size,
             recurrent_arch=cfg.architecture.recurrent_arch,
             use_proper_time_limits=use_proper_time_limits,
