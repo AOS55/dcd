@@ -43,6 +43,7 @@ class RolloutStorage(object):
                  model,
                  num_steps, num_processes, observation_space, action_space, 
                  recurrent_hidden_state_size, recurrent_arch='rnn', 
+                 skill_dim=0,
                  use_proper_time_limits=False, 
                  use_popart=False,
                  device='cpu'):
@@ -63,10 +64,18 @@ class RolloutStorage(object):
             self.is_dict_obs = True
             self.obs = {k:torch.zeros(num_steps + 1, num_processes, *(observation_space[k]).shape) \
                 for k,obs in observation_space.items()}
+            
+            if skill_dim > 0:
+                skill_dict = {'skill': torch.zeros(num_steps + 1, num_processes, skill_dim)}
+                self.obs = {**self.obs, **skill_dict}
 
             if self.use_proper_time_limits:
                 self.truncated_obs = {k:torch.zeros(num_steps + 1, num_processes, *(observation_space[k]).shape) \
                     for k,obs in observation_space.items()}
+                
+                if skill_dim > 0:
+                    skill_dict = {'skill': torch.zeros(num_steps + 1, num_processes, skill_dim)}
+                    self.truncated_obs = {**self.truncated_obs, **skill_dict}
         else:
             self.is_dict_obs = False
             self.obs = torch.zeros(num_steps + 1, num_processes, *observation_space.shape)
