@@ -5,5 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from .ppo import PPO
+from .diayn import DIAYN, Discriminator
 from .storage import RolloutStorage
 from .agent import ACAgent
