@@ -163,7 +163,7 @@ class Workspace:
                 # Eval
                 test_stats = {}
                 if self.evaluator is not None and (j % self.cfg.test_interval == 0 or j == num_updates - 1):
-                    test_stats = self.evaluator.evaluate(self.train_runner.agents['agent'])
+                    test_stats = self.evaluator.evaluate(self.train_runner.agents['agent'], self.cfg.reward_free)
                     stats.update(test_stats)
                 else:
                     stats.update({k:None for k in self.evaluator.get_stats_keys()})
@@ -240,7 +240,7 @@ class Workspace:
                         archive_interval=self.cfg.logging.archive_interval)
         logging.info("Saved checkpoint to %s", self.checkpoint_path)
 
-@hydra.main(config_path='conf/.', config_name='mg_25b_dr', version_base="1.1")
+@hydra.main(config_path='conf/.', config_name='mg_25b_diayn_fixed', version_base="1.1")
 def main(cfg):
     from train import Workspace as W
     workspace = W(cfg)
