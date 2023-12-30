@@ -249,6 +249,7 @@ class Evaluator(object):
 
 	def evaluate(self, 
 		agent, 
+		reward_free=False,
 		deterministic=False, 
 		show_progress=False,
 		render=False,
@@ -270,6 +271,11 @@ class Evaluator(object):
 				recurrent_hidden_states = (recurrent_hidden_states, torch.zeros_like(recurrent_hidden_states))
 			masks = torch.ones(self.num_processes, 1, device=self.device)
 
+			# Init Meta in obs        
+			if reward_free:
+				skill = agent.algo.init_meta(self.num_processes)
+				obs = {**obs, **skill}
+
 			pbar = None
 			if show_progress:
 				pbar = tqdm(total=self.num_episodes)
@@ -286,10 +292,14 @@ class Evaluator(object):
 					action = agent.process_action(action)
 				obs, reward, done, infos = venv.step(action)
 
+				if reward_free:
+					obs = {**obs, **skill}
+
 				masks = torch.tensor(
 					[[0.0] if done_ else [1.0] for done_ in done],
 					dtype=torch.float32,
 					device=self.device)
+				
 
 				for i, info in enumerate(infos):
 					if 'episode' in info.keys():
@@ -306,6 +316,11 @@ class Evaluator(object):
 
 						if len(returns) >= self.num_episodes:
 							break
+				
+				if reward_free:
+					for idx in range(masks.shape[1]):
+						if masks[idx] == 0.0:
+							skill["skill"][idx] = agent.algo.update_meta()
 
 				if render:
 					venv.render_to_screen()
