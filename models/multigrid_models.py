@@ -18,17 +18,18 @@ class MultigridNetwork(DeviceAwareModule):
     """
     def __init__(self, 
         observation_space, 
-        action_space, 
+        action_space,
         actor_fc_layers=(32, 32),
         value_fc_layers=(32, 32),
         conv_filters=16,
         conv_kernel_size=3, 
         scalar_fc=5,
         scalar_dim=4,
+        skill_dim=0, 
         random_z_dim=0,
         xy_dim=0,
         recurrent_arch='lstm',
-        recurrent_hidden_size=256, 
+        recurrent_hidden_size=256,
         random=False):        
         super(MultigridNetwork, self).__init__()
 
@@ -64,6 +65,7 @@ class MultigridNetwork(DeviceAwareModule):
             self.preprocessed_input_size += scalar_fc
 
         self.preprocessed_input_size += random_z_dim
+        self.preprocessed_input_size += skill_dim  # add one hot vector encoding for DIAYN skills
         self.base_output_size = self.preprocessed_input_size
 
         # RNN
@@ -113,6 +115,11 @@ class MultigridNetwork(DeviceAwareModule):
         scalar = inputs.get('direction')
         if scalar is None:
             scalar = inputs.get('time_step')
+ 
+        skill = inputs.get('skill')
+        if skill is None:
+            skill = torch.tensor([], device=self.device)
+        in_skill = skill.to(device=self.device)
 
         x = inputs.get('x')
         y = inputs.get('y')
@@ -136,7 +143,7 @@ class MultigridNetwork(DeviceAwareModule):
         else:
             in_scalar = torch.tensor([], device=self.device)
 
-        in_embedded = torch.cat((in_image, in_x, in_y, in_scalar, in_z), dim=-1)
+        in_embedded = torch.cat((in_image, in_x, in_y, in_scalar, in_z, in_skill), dim=-1)
 
         if self.rnn is not None:
             core_features, rnn_hxs = self.rnn(in_embedded, rnn_hxs, masks)
@@ -144,6 +151,38 @@ class MultigridNetwork(DeviceAwareModule):
             core_features = in_embedded
 
         return core_features, rnn_hxs
+
+    def get_encoded_obs(self, inputs):
+        
+        image = inputs.get('image')
+        scalar = inputs.get('direction')
+        if scalar is None:
+            scalar = inputs.get('time_step')
+        
+        x = inputs.get('x')
+        y = inputs.get('y')
+
+        in_z = inputs.get('random_z', torch.tensor([], device=self.device))
+        in_image = self.image_conv(image.to(self.device))
+
+        if self.xy_embed:
+            x = one_hot(self.xy_dim, x, device=self.device)
+            y = one_hot(self.xy_dim, y, device=self.device)
+            in_x = self.xy_embed(x)
+            in_y = self.xy_embed(y)
+        else:
+            in_x = torch.tensor([], device=self.device)
+            in_y = torch.tensor([], device=self.device)
+        
+        if self.scalar_embed:
+            in_scalar = one_hot(self.scalar_dim, scalar).to(self.device)
+            in_scalar = self.scalar_embed(in_scalar)
+        else:
+            in_scalar = torch.tensor([], device=self.device)
+        
+        in_embedded = torch.cat((in_image, in_x, in_y, in_scalar, in_z), dim=-1)
+        
+        return in_embedded
 
     def act(self, inputs, rnn_hxs, masks, deterministic=False):
         if self.random:
