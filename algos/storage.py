@@ -78,7 +78,10 @@ class RolloutStorage(object):
                     self.truncated_obs = {**self.truncated_obs, **skill_dict}
         else:
             self.is_dict_obs = False
-            self.obs = torch.zeros(num_steps + 1, num_processes, *observation_space.shape)
+            if skill_dim > 0:
+                self.obs = torch.zeros(num_steps + 1, num_processes, observation_space.shape[0]+skill_dim)
+            else:
+                self.obs = torch.zeros(num_steps + 1, num_processes, *observation_space.shape)
 
             if self.use_proper_time_limits:
                 self.truncated_obs = torch.zeros_like(self.obs)
