@@ -486,10 +486,13 @@ class AdversarialRunner(object):
         # Init Meta in obs        
         if self.cfg.reward_free:
             skill = agent.algo.init_meta(self.cfg.algorithm.num_processes)
-            obs = {**obs, **skill}
+            if type(obs) == dict:
+                obs = {**obs, **skill}
+            else:
+                obs = torch.concat((obs, skill['skill']), axis=1)
 
         # Initialize first observation
-        agent.storage.copy_obs_to_index(obs,0)
+        agent.storage.copy_obs_to_index(obs, 0)
         
         rollout_info = {}
         rollout_returns = [[] for _ in range(cfg.algorithm.num_processes)]
@@ -526,8 +529,16 @@ class AdversarialRunner(object):
             # TODO: get intrinsic reward if using unsupervised RL algo
             if self.cfg.reward_free:
                 with torch.no_grad():
-                    reward = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
-                    obs = {**obs, **skill}
+                    if type(obs) == dict:
+                        for k in obs.keys():
+                            obs[k] = obs[k].to(self.device)
+                        reward = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
+                        obs = {**obs, **skill}
+                    else:
+                        obs = obs.to(self.device)
+                        reward = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
+                        obs = torch.concat((obs, skill['skill'].to(self.device)), axis=1)
+
 
             if not is_env and step >= num_steps - 1:
                 # Handle early termination due to cliffhanger rollout
@@ -564,6 +575,9 @@ class AdversarialRunner(object):
                             level_seed = level_sampler.sample_replay_level()
                             level = self.level_store.get_level(level_seed)
                             obs_i = self.venv.reset_to_level(level, i)
+                            if self.cfg.reward_free:
+                                skill_i = agent.algo.init_meta(1)
+                                obs_i = {**obs_i, **skill_i}
                             set_obs_at_index(obs, obs_i, i)
                             next_level_seeds[i] = level_seed
                             rollout_info['solved_idx'][i] = True
