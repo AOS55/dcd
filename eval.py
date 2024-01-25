@@ -18,6 +18,7 @@ import torch
 from baselines.common.vec_env import DummyVecEnv
 from baselines.logger import HumanOutputFormat
 from tqdm import tqdm
+import wandb
 
 import os
 import matplotlib as mpl
@@ -253,6 +254,7 @@ class Evaluator(object):
 		deterministic=False, 
 		show_progress=False,
 		render=False,
+		use_wandb=False,
 		accumulator='mean'):
 
 		# Evaluate agent for N episodes
@@ -260,8 +262,12 @@ class Evaluator(object):
 		env_returns = {}
 		env_solved_episodes = {}
 		
+		if use_wandb:
+			frames_dict = {}
+
 		for env_name, venv in self.venv.items():
 			returns = []
+			frames = []
 			solved_episodes = 0
 
 			obs = venv.reset()
@@ -274,7 +280,10 @@ class Evaluator(object):
 			# Init Meta in obs        
 			if reward_free:
 				skill = agent.algo.init_meta(self.num_processes)
-				obs = {**obs, **skill}
+				if type(obs) == dict:
+					obs = {**obs, **skill}
+				else:
+					obs = torch.concat((obs, skill['skill'].to(self.device)), axis=1)
 
 			pbar = None
 			if show_progress:
@@ -293,13 +302,15 @@ class Evaluator(object):
 				obs, reward, done, infos = venv.step(action)
 
 				if reward_free:
-					obs = {**obs, **skill}
+					if type(obs) == dict:
+						obs = {**obs, **skill}
+					else:
+						obs = torch.concat((obs, skill['skill'].to(self.device)), axis=1)
 
 				masks = torch.tensor(
 					[[0.0] if done_ else [1.0] for done_ in done],
 					dtype=torch.float32,
 					device=self.device)
-				
 
 				for i, info in enumerate(infos):
 					if 'episode' in info.keys():
@@ -323,7 +334,31 @@ class Evaluator(object):
 							skill["skill"][idx] = agent.algo.update_meta()
 
 				if render:
-					venv.render_to_screen()
+					frame_array = np.array(venv.get_rgb_images())
+					if use_wandb:
+						frames.append(frame_array)
+
+			if use_wandb and render:
+				frames = np.array(frames)
+				if reward_free:
+					for idx in range(frames.shape[1]):
+						if type(obs) == dict:
+							if f"{env_name}_skill_{torch.argmax(obs['skill'][idx]).item()}" in frames_dict:
+								frames_dict[f"{env_name}_skill_{torch.argmax(obs['skill'][idx]).item()}"] = np.concatenate((frames_dict[f"{env_name}_skill_{torch.argmax(obs['skill'][idx]).item()}"], frames[:, idx, :, :, :]), axis=0)
+							else:
+								frames_dict[f"{env_name}_skill_{torch.argmax(obs['skill'][idx]).item()}"] = frames[:, idx, :, :, :]
+						else:
+							if f"{env_name}_skill_{torch.argmax(obs[idx, -agent.algo.skill_dim:]).item()}" in frames_dict:
+								frames_dict[f"{env_name}_skill_{torch.argmax(obs[idx, -agent.algo.skill_dim:]).item()}"] = np.concatenate((frames_dict[f"{env_name}_skill_{torch.argmax(obs[idx, -agent.algo.skill_dim:]).item()}"], frames[:, idx, :, :, :]), axis=0)
+							else:
+								frames_dict[f"{env_name}_skill_{torch.argmax(obs[idx, -agent.algo.skill_dim:]).item()}"] = frames[:, idx, :, :, :]	
+
+				else:
+					for idx in range(frames.shape[1]):
+						if f"{env_name}" in frames_dict:
+							frames_dict[f"{env_name}"] = np.concatenate((frames_dict[f"{env_name}"], frames[:, idx, :, :, :]), axis=0)
+						else:
+							frames_dict[f"{env_name}"] = frames[:, idx, :, :, :]
 
 			if pbar:
 				pbar.close()	
@@ -340,6 +375,14 @@ class Evaluator(object):
 				stats[f"test_returns:{env_name}"] = np.mean(env_returns[env_name])
 			else:
 				stats[f"test_returns:{env_name}"] = env_returns[env_name]
+		
+		if use_wandb:
+			for name, frames in frames_dict.items():
+				frames = np.array(frames)
+				print(f'frames.shape: {frames.shape}')
+				frames = np.moveaxis(frames, [0, 1, 2, 3], [0, -2, -1, -3])
+				print(f'frames.shape: {frames.shape}')
+				wandb.log({f"video/{name}": wandb.Video(frames, fps=16)})
 
 		return stats
 
