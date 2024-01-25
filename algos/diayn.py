@@ -46,12 +46,12 @@ class DIAYN:
                  actor_critic,
                  discriminator,
                  skill_dim,
-                 update_encoder,
                  clip_param,
                  ppo_epoch,
                  num_mini_batch,
                  value_loss_coef,
                  entropy_coef,
+                 discriminator_dim,
                  lr=None,
                  eps=None,
                  max_grad_norm=None,
@@ -63,7 +63,8 @@ class DIAYN:
 
         # Discriminator model
         self.discriminator = discriminator
-        self.skill_dim = skill_dim
+        self.discriminator_dim = discriminator_dim
+        self.skill_dim = skill_dim  
         
         # PPO clip training params
         self.clip_param = clip_param
@@ -178,7 +179,10 @@ class DIAYN:
 
                 # Update DIAYN discriminator
                 # obs_clone = {k: value.clone() for k, value in obs_batch.items()}
-                self.update_discriminator(obs_batch, obs_batch['skill'].clone())
+                if type(obs_batch) == dict:
+                    self.update_discriminator(obs_batch, obs_batch['skill'].clone())
+                else:
+                    self.update_discriminator(obs_batch[:, :self.discriminator_dim], obs_batch[:, -self.skill_dim:])
 
                 values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
                     obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch
