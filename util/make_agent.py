@@ -95,6 +95,8 @@ def model_for_car_racing_agent(
 
 def model_for_bipedalwalker_agent(
     env,
+    skill_dim,
+    discriminator_dim=None,
     agent_type='agent',
     recurrent_arch=False):
     if 'adversary_env' in agent_type:
@@ -103,12 +105,15 @@ def model_for_bipedalwalker_agent(
 
         model = BipedalWalkerAdversaryPolicy(
                 observation_space=adversary_observation_space,
-                action_space=adversary_action_space)
+                action_space=adversary_action_space,
+                skill_dim=skill_dim)
 
     else:
         model = BipedalWalkerStudentPolicy(
             obs_shape=env.observation_space.shape,
             action_space=env.action_space,
+            discriminator_dim=discriminator_dim,
+            skill_dim=skill_dim,
             recurrent=recurrent_arch)
 
     return model
@@ -118,6 +123,7 @@ def model_for_env_agent(
     env,
     agent_type='agent',
     skill_dim=0,
+    discriminator_dim=None,
     recurrent_arch=None,
     recurrent_hidden_size=256,
     use_global_critic=False,
@@ -155,6 +161,8 @@ def model_for_env_agent(
         model = model_for_bipedalwalker_agent(
             env=env,
             agent_type=agent_type,
+            skill_dim=skill_dim,
+            discriminator_dim=discriminator_dim,
             recurrent_arch=recurrent_arch)
     else:
         raise ValueError(f'Unsupported environment {env_name}.')
@@ -189,9 +197,15 @@ def make_agent(name, env, cfg, device='cpu'):
 
     recurrent_hidden_size = cfg.architecture.recurrent_hidden_size
 
+    if 'discriminator_dim' in cfg: 
+        d_dim = cfg.discriminator_dim
+    else:
+        d_dim = None
+
     actor_critic = model_for_env_agent(
         cfg.env_name, env, name,
-        skill_dim=cfg.skill_dim, 
+        skill_dim=cfg.skill_dim,
+        discriminator_dim=d_dim, 
         recurrent_arch=recurrent_arch,
         recurrent_hidden_size=recurrent_hidden_size,
         use_global_critic=cfg.use_global_critic,
@@ -245,10 +259,17 @@ def make_agent(name, env, cfg, device='cpu'):
         agent = ACAgent(algo=algo, storage=storage).to(device)
 
     elif cfg.algorithm.algo == 'diayn':
-        
+
+        if is_adversary_env:
+            discriminator_dim = actor_critic.preprocessed_input_size-cfg.skill_dim
+        elif 'discriminator_dim' in cfg:
+            discriminator_dim = cfg.discriminator_dim
+        else:
+            discriminator_dim = actor_critic.preprocessed_input_size-cfg.skill_dim
+
         # Create discriminator
         discriminator = Discriminator(
-            obs_dim=actor_critic.preprocessed_input_size-cfg.skill_dim,
+            obs_dim=discriminator_dim,
             skill_dim=cfg.skill_dim,
             hidden_dim=cfg.hidden_dim
         ).to(device)
@@ -258,12 +279,12 @@ def make_agent(name, env, cfg, device='cpu'):
             actor_critic=actor_critic,
             discriminator=discriminator,
             skill_dim=cfg.skill_dim,
-            update_encoder=cfg.update_encoder,
             clip_param=cfg.algorithm.clip_param,
             ppo_epoch=ppo_epoch,
             num_mini_batch=num_mini_batch,
             value_loss_coef=cfg.algorithm.value_loss_coef,
             entropy_coef=entropy_coef,
+            discriminator_dim=discriminator_dim,
             lr=cfg.algorithm.lr,
             eps=cfg.algorithm.lr,
             max_grad_norm=max_grad_norm,
