@@ -68,11 +68,15 @@ def worker(remote, parent_remote, env_fn_wrappers):
                 remote.send(envs[0].max_steps)
             elif cmd == 'render':
                 remote.send([env.render(mode='level') for env in envs])
+            elif cmd == 'render_rgb':
+                remote.send([env.render(mode='rgb_array') for env in envs])
             elif cmd == 'render_to_screen':
                 remote.send([envs[0].render('human')])
             elif cmd == 'close':
                 remote.close()
                 break
+            elif cmd == 'get_agent_pos':
+                remote.send([env.agent_pos for env in envs])
             elif cmd == 'get_spaces_spec':
                 remote.send(CloudpickleWrapper((envs[0].observation_space, envs[0].action_space, envs[0].spec)))
             elif cmd == 'reset_to_level':
@@ -192,10 +196,25 @@ class SubprocVecEnv(VecEnv):
         imgs = _flatten_list(imgs)
         return imgs
 
+    def get_rgb_images(self):
+        self._assert_not_closed()
+        for remote in self.remotes:
+            remote.send(('render_rgb', None))
+        imgs = [remote.recv() for remote in self.remotes]
+        imgs = _flatten_list(imgs)
+        return imgs
+    
     def render_to_screen(self):
         self._assert_not_closed()
         self.remotes[0].send(('render_to_screen', None))
         return self.remotes[0].recv()
+
+    def get_agent_pos(self):
+        self._assert_not_closed()
+        for remote in self.remotes:
+            remote.send(('get_agent_pos', None))
+        poss = [remote.recv() for remote in self.remotes]
+        return poss
 
     def max_episode_steps(self):
         self._assert_not_closed()
