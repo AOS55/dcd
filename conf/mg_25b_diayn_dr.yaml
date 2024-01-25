@@ -20,6 +20,9 @@ test_interval: 250
 test_num_episodes: 10
 test_num_processes: 2
 test_env_names:
+  # - MultiGrid-SixteenRooms-v0
+  # - MultiGrid-Labyrinth-v0
+  # - MultiGrid-Maze-v0
   - MultiGrid-EmptyMaze-v0
 
 # Environment arguments
@@ -30,14 +33,15 @@ use_global_critic: False
 use_global_policy: False
 
 # DIAYN
-reward_free: False
-skill_dim: 0
+reward_free: True 
+skill_dim: 4
 hidden_dim: 1024
 update_skill_every_step: True
 update_encoder: True
 
 # Override algo values
 algorithm:
+  algo: diayn
   lr: 0.0001
   gamma: 0.995
   entropy_coef: 0.01
@@ -76,9 +80,9 @@ accel:
   base_levels: batch
 
 logging:
-  group_name: mg_25b_dr
+  group_name: mg_25b_diayn_dr
   xpid: GoalLastFewerBlocksAdversarial
-  log_dir: "~/logs/dcd/minigrid/dr"
+  log_dir: "~/logs/dcd/minigrid/dr_diayn"
   log_interval: 25
   log_action_complexity: True
   archive_interval: 500
@@ -86,4 +90,4 @@ logging:
   log_replay_complexity: True
   reject_unsolvable_seeds: False
   checkpoint: True
-  use_wandb: True
+  use_wandb: False

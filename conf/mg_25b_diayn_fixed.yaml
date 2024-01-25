@@ -77,6 +77,7 @@ accel:
   base_levels: batch
 
 logging:
+  group_name: mg_25b_diayn_fixed
   xpid: GoalLastFewerBlocksAdversarial
   log_dir: "~/logs/dcd/minigrid/fixed_diayn"
   log_interval: 25
@@ -86,3 +87,4 @@ logging:
   log_replay_complexity: True
   reject_unsolvable_seeds: False
   checkpoint: True
+  use_wandb: True

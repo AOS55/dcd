@@ -15,6 +15,7 @@ model_finetune: model
 no_cuda: False
 
 # Evaluation arguments
+record_video: True
 test_interval: 250
 test_num_episodes: 10
 test_num_processes: 2
@@ -22,6 +23,13 @@ test_env_names:
   - MultiGrid-SixteenRooms-v0
   - MultiGrid-Labyrinth-v0
   - MultiGrid-Maze-v0
+
+# DIAYN
+reward_free: False
+skill_dim: 0
+hidden_dim: 1024
+update_skill_every_step: True
+update_encoder: True
 
 # Environment arguments
 env_name: MultiGrid-GoalLastFewerBlocksAdversarial-v0
@@ -70,6 +78,8 @@ accel:
   base_levels: batch
 
 logging:
+  group_name: mg_25b_minimax
+  xpid: GoalLastFewerBlocksAdversarial
   log_dir: "~/logs/dcd/minigrid/minimax"
   log_interval: 25
   log_action_complexity: True
@@ -78,3 +88,4 @@ logging:
   log_replay_complexity: True
   reject_unsolvable_seeds: False
   checkpoint: True
+  use_wandb: True

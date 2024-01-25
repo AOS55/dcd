@@ -20,27 +20,31 @@ test_interval: 250
 test_num_episodes: 10
 test_num_processes: 2
 test_env_names:
-  - MultiGrid-EmptyMaze-v0
+  - MultiGrid-SixteenRooms-v0
+  - MultiGrid-Labyrinth-v0
+  - MultiGrid-Maze-v0
 
 # Environment arguments
-env_name: MultiGrid-GoalLastFewerBlocksAdversarial-v0
+env_name: MultiGrid-GoalLastEmptyAdversarialEnv-Edit-v0
 handle_timelimits: True
 singleton_env: False
 use_global_critic: False
 use_global_policy: False
 
 # DIAYN
-reward_free: False
-skill_dim: 0
+reward_free: True 
+skill_dim: 4
 hidden_dim: 1024
 update_skill_every_step: True
 update_encoder: True
 
 # Override algo values
 algorithm:
+  algo: diayn
   lr: 0.0001
   gamma: 0.995
-  entropy_coef: 0.01
+  entropy_coef: 0.0
+  adv_entropy_coef: 0.0
   num_steps: 256
   num_processes: 32
   num_env_steps: 250000000
@@ -49,7 +53,6 @@ algorithm:
   value_loss_coef: 0.5
   clip_param: 0.2
   clip_value_loss: True
-  adv_entropy_coef: 0.0
   max_grad_norm: 0.5
 
 architecture:
@@ -60,30 +63,33 @@ architecture:
   
 plr:
   use_plr: True
-  level_replay_prob: 0.0
-  level_replay_rho: 1.0
-  level_replay_seed_buffer_size: 5000
+  level_replay_prob: 0.8
+  level_replay_rho: 0.5
+  level_replay_seed_buffer_size: 4000
+  level_replay_strategy: positive_value_loss
   level_replay_score_transform: rank
-  level_replay_temperature: 0.1
+  level_replay_temperature: 0.3
   staleness_coef: 0.3
-  no_exploratory_grad_updates: False
+  no_exploratory_grad_updates: True
 
 accel:
-  use_editor: False
-  level_editor_prob: 0
+  use_editor: True
+  level_editor_prob: 1.0
   level_editor_method: random
-  num_edits: 0
-  base_levels: batch
+  num_edits: 5
+  base_levels: easy
 
 logging:
-  group_name: mg_25b_dr
-  xpid: GoalLastFewerBlocksAdversarial
-  log_dir: "~/logs/dcd/minigrid/dr"
+  group_name: mg_60b_diayn_accel
+  xpid: GoalLastEmptyAdversarialEnv
+  log_dir: "~/logs/dcd/minigrid/accel_diayn"
   log_interval: 25
   log_action_complexity: True
-  archive_interval: 500
+  archive_interval: 5000
+  screenshot_interval: 1000
   log_plr_buffer_stats: True
   log_replay_complexity: True
   reject_unsolvable_seeds: False
   checkpoint: True
+  checkpoint_basis: student_grad_updates
   use_wandb: True

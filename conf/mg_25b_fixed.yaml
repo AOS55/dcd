@@ -20,7 +20,7 @@ test_interval: 250
 test_num_episodes: 10
 test_num_processes: 2
 test_env_names:
-  - MultiGrid-SixteenRooms-v0
+  - MultiGrid-EmptyMaze-v0
 
 # Environment arguments
 env_name: MultiGrid-GoalLastFewerBlocksAdversarial-v0
@@ -75,6 +75,7 @@ accel:
   base_levels: batch
 
 logging:
+  group_name: mg_25b_fixed
   xpid: GoalLastFewerBlocksAdversarial
   log_dir: "~/logs/dcd/minigrid/fixed"
   log_interval: 25
@@ -84,3 +85,4 @@ logging:
   log_replay_complexity: True
   reject_unsolvable_seeds: False
   checkpoint: True
+  use_wandb: True

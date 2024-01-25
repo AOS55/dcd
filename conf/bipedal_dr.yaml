@@ -16,16 +16,17 @@ model_finetune: model
 no_cuda: False
 
 # Evaluation arguments
+record_video: False
 test_interval: 250
 test_num_episodes: 10
 test_num_processes: 2
 test_env_names:
   - BipedalWalker-v3
   - BipedalWalkerHardcore-v3
-  - BipedalWalker-Med-Stairs-v0
-  - BipedalWalker-Med-PitGap-v0
-  - BipedalWalker-Med-StumpHeight-v0
-  - BipedalWalker-Med-Roughness-v0
+  # - BipedalWalker-Med-Stairs-v0
+  # - BipedalWalker-Med-PitGap-v0
+  # - BipedalWalker-Med-StumpHeight-v0
+  # - BipedalWalker-Med-Roughness-v0
 
 # Environment arguments
 env_name: BipedalWalker-Adversarial-v0
@@ -33,6 +34,13 @@ handle_timelimits: True
 singleton_env: False
 use_global_critic: False
 use_global_policy: False
+
+# DIAYN
+reward_free: False
+skill_dim: 0
+hidden_dim: 1024
+update_skill_every_step: True
+discriminator_dim:
 
 # Override algo values
 algorithm:
@@ -78,6 +86,8 @@ plr:
   no_exploratory_grad_updates: False
 
 logging:
+  group_name: bipedal_dr
+  xpid: Adversarial
   log_dir: ~/logs/dcd/bipedal/dr
   log_interval: 10
   test_interval: 100
@@ -90,4 +100,5 @@ logging:
   log_action_complexity: False
   log_grad_norm: True
   checkpoint_basis: student_grad_updates
-  archive_interval: 5000
+  archive_interval: 500
+  use_wandb: True
