@@ -9,6 +9,7 @@
 # This file is a modified version code found in
 # https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/
 
+from re import I
 import numpy as np
 import torch
 import torch.nn as nn
@@ -111,16 +112,25 @@ class Flatten(nn.Module):
         return x.view(x.size(0), -1)
 
 class BipedalWalkerStudentPolicy(DeviceAwareModule):
-    def __init__(self, obs_shape, action_space, recurrent=False,base_kwargs=None):
+    def __init__(self, 
+                 obs_shape, 
+                 action_space,
+                 discriminator_dim=None,
+                 skill_dim=0,
+                 recurrent=False,
+                 base_kwargs=None):
         super(BipedalWalkerStudentPolicy, self).__init__()
 
         if base_kwargs is None:
             base_kwargs = {}
 
-        self.base = MLPBase(obs_shape[0], recurrent=recurrent, **base_kwargs)
+        self.preprocessed_input_size = obs_shape[0] + skill_dim
+        self.base = MLPBase(self.preprocessed_input_size, recurrent=recurrent, **base_kwargs)
 
         num_outputs = action_space.shape[0]
         self.dist = DiagGaussian(self.base.output_size, num_outputs)
+
+        self.discriminator_dim = discriminator_dim
 
         if recurrent:
             RNN = namedtuple("RNN", 'arch')
@@ -138,6 +148,17 @@ class BipedalWalkerStudentPolicy(DeviceAwareModule):
     def forward(self, inputs):
         value, action, action_log_probs, rnn_hxs = self.act(inputs, rnn_hxs=None, masks=None, deterministic=False)
         return action
+
+    def get_encoded_obs(self, inputs):
+
+        if self.discriminator_dim:
+            in_embedded = inputs[:, :self.discriminator_dim]
+        else:
+            in_embedded = inputs        
+
+        # in_embedded = inputs
+
+        return in_embedded
 
     def act(self, inputs, rnn_hxs, masks, deterministic=False):
         value, actor_features, rnn_hxs = self.base(inputs, rnn_hxs, masks)
@@ -168,7 +189,13 @@ class BipedalWalkerStudentPolicy(DeviceAwareModule):
 
 
 class BipedalWalkerAdversaryPolicy(DeviceAwareModule):
-    def __init__(self, observation_space, action_space, editor=False, random=False, base_kwargs=None):
+    def __init__(self,
+                 observation_space,
+                 action_space,
+                 skill_dim=0,
+                 editor=False,
+                 random=False,
+                 base_kwargs=None):
         super(BipedalWalkerAdversaryPolicy, self).__init__()
 
         if base_kwargs is None:
@@ -180,8 +207,9 @@ class BipedalWalkerAdversaryPolicy(DeviceAwareModule):
         self.random_z_dim = observation_space['random_z'].shape[0]
 
         obs_dim = self.design_dim + self.random_z_dim  + 1
+        self.preprocessed_input_size = obs_dim + skill_dim
 
-        self.base = MLPBase(obs_dim, **base_kwargs)
+        self.base = MLPBase(self.preprocessed_input_size, **base_kwargs)
 
         self.editor = editor
 
@@ -204,6 +232,12 @@ class BipedalWalkerAdversaryPolicy(DeviceAwareModule):
     def preprocess(self, inputs):
         obs = torch.cat([inputs['image'], inputs['random_z'], inputs['time_step']], axis=1)
         return obs
+
+    def get_encoded_obs(self, inputs):
+
+        in_embedded = self.preprocess(inputs)        
+
+        return in_embedded
 
     def act(self, inputs, rnn_hxs, masks, deterministic=False):
 
