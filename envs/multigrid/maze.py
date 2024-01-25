@@ -396,12 +396,59 @@ class MediumMazeEnv(MazeEnv):
     ])
     super().__init__(size=10, bit_map=bit_map, start_pos=start_pos,
                      goal_pos=goal_pos)
+    
+class MediumMazeEnv(MazeEnv):
+  """A 10x10 Maze environment."""
 
+  def __init__(self):
+    start_pos = np.array([5, 1])
+    goal_pos = np.array([3, 8])
+    bit_map = np.array([
+        [0, 1, 0, 0, 0, 1, 1, 0],
+        [0, 1, 0, 1, 0, 1, 0, 0],
+        [0, 1, 0, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 1, 0, 0],
+        [1, 1, 1, 1, 0, 1, 0, 1],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 1, 1, 1, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0],
+    ])
+    super().__init__(size=10, bit_map=bit_map, start_pos=start_pos,
+                     goal_pos=goal_pos)
+
+class EmptyMazeEnv(MazeEnv):
+  """An empty Maze environment to study unsupervised behavior"""
+
+  def __init__(self):
+    start_pos = np.array([2, 2])
+    goal_pos = np.array([12, 12])
+    bit_map = np.array([
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ])
+    super().__init__(size=15, bit_map=bit_map, start_pos=start_pos,
+                    goal_pos=goal_pos)
 
 if hasattr(__loader__, 'name'):
   module_path = __loader__.name
 elif hasattr(__loader__, 'fullname'):
   module_path = __loader__.fullname
+
+register.register(
+    id='MultiGrid-EmptyMaze-v0',
+    entry_point=module_path + ':EmptyMazeEnv'
+)
 
 register.register(
     id='MultiGrid-Maze-v0',
