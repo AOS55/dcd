@@ -13,6 +13,9 @@ import logging
 from arguments import parser
 
 import torch
+import wandb
+from omegaconf import OmegaConf
+from omegaconf import DictConfig
 import gym
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -20,12 +23,12 @@ from baselines.logger import HumanOutputFormat
 
 display = None
 
-if sys.platform.startswith('linux'):
-    print('Setting up virtual display')
+# if sys.platform.startswith('linux'):
+#     print('Setting up virtual display')
 
-    import pyvirtualdisplay
-    display = pyvirtualdisplay.Display(visible=0, size=(1400, 900), color_depth=24)
-    display.start()
+#     import pyvirtualdisplay
+#     display = pyvirtualdisplay.Display(visible=0, size=(1400, 900), color_depth=24)
+#     display.start()
 
 from envs.multigrid import *
 from envs.multigrid.adversarial import *
@@ -47,8 +50,17 @@ class Workspace:
         if self.cfg.logging.xpid is None:
             self.cfg.logging.xpid = "lr-%s" % time.strftime("%Y%m%d-%H%M%S")
         self.log_dir = os.path.expandvars(os.path.expanduser(self.cfg.logging.log_dir))
+
+        cfg_dict = {}
+        for key, value in dict(self.cfg).items():
+            if type(value) == DictConfig:
+                cfg_dict[key] = dict(value)
+            else:
+                cfg_dict[key] = value
+        cfg_dict["test_env_names"] = list(cfg_dict["test_env_names"])
+
         self.filewriter = FileWriter(
-            xpid=self.cfg.logging.xpid, xp_args=self.cfg.__dict__, rootdir=self.log_dir
+            xpid=self.cfg.logging.xpid, xp_args=cfg_dict, rootdir=self.log_dir
         )
         self.screenshot_dir = os.path.join(self.log_dir, self.cfg.logging.xpid, 'screenshots')
         if not os.path.exists(self.screenshot_dir):
@@ -58,6 +70,9 @@ class Workspace:
         else:
             logging.disable(logging.CRITICAL)
 
+        if self.cfg.logging.use_wandb:
+            wandb.init(project="dcd", group=self.cfg.logging.group_name, config=OmegaConf.to_container(self.cfg, resolve=True), sync_tensorboard=True)
+        
         # === Determine device ====
         self.cuda = not self.cfg.no_cuda and torch.cuda.is_available()
         self.device = torch.device("cuda:0" if self.cuda else "cpu")
@@ -163,7 +178,9 @@ class Workspace:
                 # Eval
                 test_stats = {}
                 if self.evaluator is not None and (j % self.cfg.test_interval == 0 or j == num_updates - 1):
-                    test_stats = self.evaluator.evaluate(self.train_runner.agents['agent'], self.cfg.reward_free)
+                    test_stats = self.evaluator.evaluate(self.train_runner.agents['agent'], self.cfg.reward_free,
+                                                         render=self.cfg.record_video,
+                                                         use_wandb=self.cfg.logging.use_wandb)
                     stats.update(test_stats)
                 else:
                     stats.update({k:None for k in self.evaluator.get_stats_keys()})
@@ -175,6 +192,10 @@ class Workspace:
                 stats.update({'sps': sps})
                 stats.update(test_stats) # Ensures sps column is always before test stats
                 self.log_stats(stats)
+
+            # log WandB
+            if self.cfg.logging.use_wandb:
+                wandb.log(stats)
 
             checkpoint_idx = getattr(self.train_runner, self.cfg.logging.checkpoint_basis)
 
@@ -206,6 +227,10 @@ class Workspace:
                 else:
                     self.venv.reset_agent()
                     images = self.venv.get_images()
+                    if self.cfg.logging.use_wandb:
+                        print(f'images.shape: {len(images)}')
+                        image = wandb.Image(images[0])
+                        wandb.log({"images": image})
                     if self.cfg.accel.use_editor and level_info:
                         save_images(
                             images[:self.cfg.logging.screenshot_batch_size], 
@@ -240,7 +265,7 @@ class Workspace:
                         archive_interval=self.cfg.logging.archive_interval)
         logging.info("Saved checkpoint to %s", self.checkpoint_path)
 
-@hydra.main(config_path='conf/.', config_name='mg_25b_diayn_fixed', version_base="1.1")
+@hydra.main(config_path='conf/.', config_name='mg_25b_diayn_dr', version_base="1.1")
 def main(cfg):
     from train import Workspace as W
     workspace = W(cfg)
