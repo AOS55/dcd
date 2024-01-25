@@ -663,12 +663,12 @@ class MiniGoalLastAdversarialEnv(AdversarialEnv):
                      choose_goal_last=True, fixed_environment=fixed_environment, seed=seed)
 
 class FixedAdversarialEnv(AdversarialEnv):
-  def __init__(self):
+  def __init__(self, seed=None):
     super().__init__(n_clutter=50, size=15, agent_view_size=5, max_steps=50, fixed_environment=True)
 
 class EmptyMiniFixedAdversarialEnv(AdversarialEnv):
-  def __init__(self):
-    super().__init__(n_clutter=0, size=6, agent_view_size=5, max_steps=50, fixed_environment=True)
+  def __init__(self, seed=None):
+    super().__init__(n_clutter=0, size=60, agent_view_size=5, max_steps=50, fixed_environment=True)
 
 
 if hasattr(__loader__, 'name'):
