@@ -1,0 +1,32 @@
+defaults:
+  - override hydra/launcher: submitit_local
+
+# Running options
+num_processes: 1
+max_num_processes: 1
+num_episodes: 5
+no_cuda: True
+log_dir: "~/logs/dcd/minigrid/accel"
+result_path: "eval_results/mg_60b_accel_empty"
+prefix: test
+xpid: GoalLastFewerBlocksAdverarial
+model_tar: model_10000
+model_name: agent
+
+test_env_names:
+  - MultiGrid-EmptyMaze-v0
+  - MultiGrid-Labyrinth-v0
+  - MultiGrid-Maze-v0
+
+record_video: True
+plot_pos: True
+frame_stack: False
+grayscale: False
+use_global_critic: False
+
+deterministic: True
+verbose: True
+show_progress: True
+render: True
+accumulator: False
+reward_free: False

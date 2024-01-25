@@ -15,3 +15,5 @@ log_action_complexity: False
 log_replay_complexity: False
 log_plr_buffer_stats: False
 verbose: False
+use_wandb: False
+group_name: default
