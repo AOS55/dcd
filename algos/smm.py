@@ -8,7 +8,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-
 def weight_init(m):
     """Custom weight init for Conv2D and Linear layers."""
     if isinstance(m, nn.Linear):
@@ -22,26 +21,86 @@ def weight_init(m):
             m.bias.data.fill_(0.0)
 
 
-class Discriminator(nn.Module):
-    
-    def __init__(self, obs_dim, skill_dim, hidden_dim):
+class VAE(nn.Module):
+    def __init__(self, obs_dim, z_dim, code_dim, vae_beta, device):
         super().__init__()
-        self.skill_pred_net = nn.Sequential(nn.Linear(obs_dim, hidden_dim),
-                                            nn.ReLU(),
-                                            nn.Linear(hidden_dim, hidden_dim),
-                                            nn.ReLU(),
-                                            nn.Linear(hidden_dim, skill_dim))
+        self.z_dim = z_dim
+        self.code_dim = code_dim
+        
+        self.make_networks(obs_dim, z_dim, code_dim)
+        self.beta = vae_beta
+
+        self.apply(weight_init)
+        self.device = device
+
+    def make_networks(self, obs_dim, z_dim, code_dim):
+        self.enc = nn.Sequential(nn.Linear(obs_dim + z_dim, 150), nn.ReLU(),
+                                 nn.Linear(150, 150), nn.ReLU())
+        self.enc_mu = nn.Linear(150, code_dim)
+        self.enc_logvar = nn.Linear(150, code_dim)
+        self.dec = nn.Sequential(nn.Linear(code_dim, 150), nn.ReLU(),
+                                 nn.Linear(150, 150), nn.ReLU(),
+                                 nn.Linear(150, obs_dim + z_dim))
+
+    def encode(self, obs_z):
+        enc_features = self.enc(obs_z)
+        mu = self.enc_mu(enc_features)
+        logvar = self.enc_logvar(enc_features)
+        stds = (0.5 * logvar).exp()
+        return mu, logvar, stds
+
+    def forward(self, obs_z, epsilon):
+        mu, logvar, stds = self.encode(obs_z)
+        code = epsilon * stds + mu
+        obs_distr_params = self.dec(code)
+        return obs_distr_params, (mu, logvar, stds)
+
+    def loss(self, obs_z):
+        epsilon = torch.randn([obs_z.shape[0], self.code_dim]).to(self.device)
+        obs_distr_params, (mu, logvar, stds) = self(obs_z, epsilon)
+        kle = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(),
+                               dim=1).mean()
+        log_prob = F.mse_loss(obs_z, obs_distr_params, reduction='none')
+
+        loss = self.beta * kle + log_prob.mean()
+        return loss, log_prob.sum(list(range(1, len(log_prob.shape)))).view(
+            log_prob.shape[0], 1)
+
+
+
+class SMMDiscriminator(nn.Module):
+
+    def __init__(self, obs_dim, z_dim, hidden_dim, vae_beta, device):
+        super().__init__()
+        self.z_dim = z_dim
+        self.z_pred_net = nn.Sequential(nn.Linear(obs_dim, hidden_dim),
+                                        nn.ReLU(),
+                                        nn.Linear(hidden_dim, hidden_dim),
+                                        nn.ReLU(),
+                                        nn.Linear(hidden_dim, z_dim))
+        self.vae = VAE(
+            obs_dim=obs_dim,
+            z_dim=z_dim,
+            code_dim=128,
+            vae_beta=vae_beta,
+            device=device
+        )
         self.apply(weight_init)
 
-    def forward(self, obs):
-        skill_pred = self.skill_pred_net(obs)
-        return skill_pred
+        print(f"Density Model --> {self.vae}")
+        print(f"Discriminator Model --> {self.z_pred_net}")
 
+    def predict_logits(self, obs):
+        z_pred_logits = self.z_pred_net(obs)
+        return z_pred_logits
 
-class DIAYN:
-    """
-    DIAYN w/PPO optimizer
-    """
+    def loss(self, logits, z):
+        z_labels = torch.argmax(z, 1)
+        return nn.CrossEntropyLoss(reduction='none')(logits, z_labels)
+    
+
+class SMM:
+
     def __init__(self,
                  actor_critic,
                  discriminator,
@@ -57,15 +116,15 @@ class DIAYN:
                  max_grad_norm=None,
                  clip_value_loss=True,
                  log_grad_norm=False):
-
+        
         # Actor critic model
         self.actor_critic = actor_critic
 
         # Discriminator model
         self.discriminator = discriminator
         self.discriminator_dim = discriminator_dim
-        self.skill_dim = skill_dim  
-        
+        self.skill_dim = skill_dim
+
         # PPO clip training params
         self.clip_param = clip_param
         self.ppo_epoch = ppo_epoch
@@ -79,15 +138,13 @@ class DIAYN:
         # PPO max gradient normalizer
         self.max_grad_norm = max_grad_norm
 
-        # # Fix same LR for discriminator and PPO optimizer
-        # self.lr = lr
-
         # Setup optimizer for PPO
         self.optimizer = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
-        # DIAYN discriminator functions
-        self.discriminator_criterion = nn.CrossEntropyLoss()
-        self.discriminator_opt = optim.Adam(self.discriminator.parameters(), lr=lr)
+        # SMM/Discriminator optimizers
+        self.pred_optimizer = torch.optim.Adam(self.discriminator.z_pred_net.parameters(), lr=lr)
+        self.vae_optimizer = torch.optim.Adam(self.discriminator.vae.parameters(), lr=lr)
+        
         self.discriminator.train()
 
         self.log_grad_norm = log_grad_norm
@@ -116,36 +173,55 @@ class DIAYN:
         skill[np.random.choice(self.skill_dim)] = 1.0
         skill = torch.Tensor(skill)
         return skill
-
+    
     def update_discriminator(self, obs, skill):
         metrics = dict()
         in_obs = self.actor_critic.get_encoded_obs(obs)
-        loss, df_accuracy = self.compute_discriminator_loss(in_obs, skill)
-        self.discriminator_opt.zero_grad()
+        obs_z = torch.cat([in_obs, skill], dim=1) 
+        vae_metric, h_s_z = self.update_vae(obs_z)
+        pred_metrics, h_z_s = self.update_pred(in_obs, skill)
+        metrics.update(vae_metric) 
+        metrics.update(pred_metrics)
+        return h_s_z, h_z_s, metrics
+
+    def update_vae(self, obs_z):
+        metrics = dict()
+        loss, h_s_z = self.discriminator.vae.loss(obs_z)
+        self.vae_optimizer.zero_grad()
         loss.backward()
-        self.discriminator_opt.step()
-        return metrics
-
-    def compute_intrinsic_reward(self, obs, skill):
-        metrics = {}
+        self.vae_optimizer.step()
+        metrics['loss_vae'] = loss.cpu().item()
+        return metrics, h_s_z
+    
+    def update_pred(self, obs, z):
+        metrics = dict()
+        logits = self.discriminator.predict_logits(obs)
+        h_z_s = self.discriminator.loss(logits, z).unsqueeze(-1)
+        loss = h_z_s.mean()
+        self.pred_optimizer.zero_grad()
+        loss.backward()
+        self.pred_optimizer.step()
+        metrics['loss_pred'] = loss.cpu().item()
+        return metrics, h_z_s
+    
+    def compute_intrinsic_reward(self, obs, skill, extr_reward):
+        metrics = dict()
         in_obs = self.actor_critic.get_encoded_obs(obs)
-        z_hat = torch.argmax(skill, dim=1)
-        d_pred = self.discriminator(in_obs)
-        d_pred_log_softmax = F.log_softmax(d_pred, dim=1)
-        _, pred_z = torch.max(d_pred_log_softmax, dim=1, keepdim=True)
-        reward = d_pred_log_softmax[torch.arange(d_pred.shape[0]),
-                                    z_hat] - math.log(1 / self.skill_dim)
-        reward = reward.reshape(-1, 1)
-        return reward, metrics
+        in_skill = skill.to(self.actor_critic.device)
+        obs_z = torch.cat([in_obs, in_skill], dim=1)
+        h_z = np.log(self.skill_dim)  # One-hot z encoding
+        h_z *= torch.ones_like(extr_reward).to(self.actor_critic.device)
+        _, h_s_z = self.discriminator.vae.loss(obs_z)
+        logits = self.discriminator.predict_logits(in_obs)
+        h_z_s = self.discriminator.loss(logits, in_skill).unsqueeze(-1)
+        
+        reward = 1000.0 * extr_reward.to(self.actor_critic.device) + h_s_z.detach() + h_z + h_z_s.detach() # Currently has no scaling
+        metrics['extr_reward'] = extr_reward.detach().to(device='cpu')
+        metrics['h_s_z'] = h_s_z.detach().to(device='cpu')
+        metrics['h_z'] = h_z.detach().to(device='cpu')
+        metrics['h_z_s'] = h_z_s.detach().to(device='cpu')
 
-    def compute_discriminator_loss(self, in_obs, skill):
-        z_hat = torch.argmax(skill, dim=1)
-        d_pred = self.discriminator(in_obs)
-        d_pred_log_softmax = F.log_softmax(d_pred, dim=1)
-        _, pred_z = torch.max(d_pred_log_softmax, dim=1, keepdim=True)
-        d_loss = self.discriminator_criterion(d_pred, z_hat)
-        df_accuracy = torch.sum(torch.eq(z_hat, pred_z.reshape(1, list(pred_z.size())[0])[0])).float() / list(pred_z.size())[0]
-        return d_loss, df_accuracy
+        return reward, metrics
 
     def update(self, rollouts, discard_grad=False):
         
@@ -165,7 +241,7 @@ class DIAYN:
             grad_norms = []
 
         for e in range(self.ppo_epoch):
-            
+
             if self.actor_critic.is_recurrent:
                 data_generator = rollouts.recurrent_generator(
                     advantages, self.num_mini_batch
@@ -174,17 +250,15 @@ class DIAYN:
                 data_generator = rollouts.feed_forward_generator(
                     advantages, self.num_mini_batch
                 )
-
+            
             for sample in data_generator:
                 obs_batch, recurrent_hidden_states_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ = sample
 
-                # Update DIAYN discriminator
-                # obs_clone = {k: value.clone() for k, value in obs_batch.items()}
                 if type(obs_batch) == dict:
-                    self.update_discriminator(obs_batch, obs_batch['skill'].clone())
+                    h_s_z, h_z_s, metrics = self.update_discriminator(obs_batch, obs_batch['skill'].clone())
                 else:
                     self.update_discriminator(obs_batch[:, :self.discriminator_dim], obs_batch[:, -self.skill_dim:])
-
+                
                 values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
                     obs_batch, recurrent_hidden_states_batch, masks_batch, actions_batch
                 )
