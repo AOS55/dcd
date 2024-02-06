@@ -391,6 +391,7 @@ class Workspace:
             meta_json_file = open(meta_json_path)
             meta_cfg = json.load(meta_json_file)
             meta_dict = DotDict(meta_cfg['args'])
+            meta_dict['skill_dim'] = self.cfg.skill_dim
             # xpid_flags = DotDict(json.load(meta_json_file)['args'])
             
             make_fn = [lambda: WriteEvaluator.make_env(env_names[0])]
