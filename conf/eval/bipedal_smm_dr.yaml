@@ -4,14 +4,14 @@ defaults:
 # Running options
 num_processes: 1
 max_num_processes: 1
-num_episodes: 8
-skill_dim: 8
+num_episodes: 4
+skill_dim: 4
 no_cuda: True
-log_dir: "~/logs/dcd/bipedal/dr_diayn_8"
-result_path: "eval_results/bipedal_diayn_dr_8"
+log_dir: "~/logs/dcd/bipedal/dr_smm_4"
+result_path: "eval_results/dr_smm_4"
 prefix: test
 xpid: Adversarial
-model_tar: model_20000
+model_tar: model_30500
 model_name: agent
 
 test_env_names:

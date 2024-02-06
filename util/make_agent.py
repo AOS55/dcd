@@ -4,7 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from algos import PPO, DIAYN, Discriminator, RolloutStorage, ACAgent
+from algos import PPO, DIAYN, Discriminator, SMM, SMMDiscriminator, RolloutStorage, ACAgent
 from models import \
     MultigridNetwork, MultigridGlobalCriticNetwork, \
     CarRacingNetwork, \
@@ -276,6 +276,57 @@ def make_agent(name, env, cfg, device='cpu'):
 
         # Create PPO based DIAYN
         algo = DIAYN(
+            actor_critic=actor_critic,
+            discriminator=discriminator,
+            skill_dim=cfg.skill_dim,
+            clip_param=cfg.algorithm.clip_param,
+            ppo_epoch=ppo_epoch,
+            num_mini_batch=num_mini_batch,
+            value_loss_coef=cfg.algorithm.value_loss_coef,
+            entropy_coef=entropy_coef,
+            discriminator_dim=discriminator_dim,
+            lr=cfg.algorithm.lr,
+            eps=cfg.algorithm.lr,
+            max_grad_norm=max_grad_norm,
+            clip_value_loss=cfg.algorithm.clip_value_loss,
+            log_grad_norm=cfg.logging.log_grad_norm
+        )
+
+        # Create storage
+        storage = RolloutStorage(
+            model=actor_critic,
+            num_steps=num_steps,
+            num_processes=cfg.algorithm.num_processes,
+            observation_space=observation_space,
+            action_space=action_space,
+            skill_dim=cfg.skill_dim,
+            recurrent_hidden_state_size=cfg.architecture.recurrent_hidden_size,
+            recurrent_arch=cfg.architecture.recurrent_arch,
+            use_proper_time_limits=use_proper_time_limits,
+            use_popart=use_popart
+        )
+
+        agent = ACAgent(algo=algo, storage=storage).to(device)
+
+    elif cfg.algorithm.algo == 'smm':
+
+        if is_adversary_env:
+            discriminator_dim = actor_critic.preprocessed_input_size-cfg.skill_dim
+        elif 'discriminator_dim' in cfg:
+            discriminator_dim = cfg.discriminator_dim
+        else:
+            discriminator_dim = actor_critic.preprocessed_input_size-cfg.skill_dim
+
+        # Create discriminator
+        discriminator = SMMDiscriminator(
+            obs_dim=discriminator_dim,
+            z_dim=cfg.skill_dim,
+            hidden_dim = cfg.hidden_dim,
+            vae_beta=0.5,
+            device=device
+        ).to(device)
+
+        algo = SMM(
             actor_critic=actor_critic,
             discriminator=discriminator,
             skill_dim=cfg.skill_dim,

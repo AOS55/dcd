@@ -3,8 +3,8 @@ defaults:
   - architecture/rnn
   - ued/domain_randomization
   - plr/default
-  - accel/default
   - logging/default
+  - accel/default
   - car_racing/default
   - override hydra/launcher: submitit_local
 
@@ -22,32 +22,30 @@ test_num_episodes: 10
 test_num_processes: 2
 test_env_names:
   - BipedalWalker-v3
-  # - BipedalWalkerHardcore-v3
-  # - BipedalWalker-Med-Stairs-v0
-  # - BipedalWalker-Med-PitGap-v0
-  # - BipedalWalker-Med-StumpHeight-v0
-  # - BipedalWalker-Med-Roughness-v0
+  - BipedalWalkerHardcore-v3
 
 # Environment arguments
-env_name: BipedalWalker-Adversarial-v0
+env_name: BipedalWalker-Adversarial-Easy-v0
 handle_timelimits: True
 singleton_env: False
 use_global_critic: False
 use_global_policy: False
 
-# DIAYN
+# SMM
 reward_free: True
-skill_dim: 16
+skill_dim: 4
 hidden_dim: 1024
 update_skill_every_step: True
-discriminator_dim: 14
+update_encoder: True
 
 # Override algo values
 algorithm:
-  algo: diayn
+  algo: smm
+  seed: 1
   lr: 0.0003
   max_grad_norm: 0.5
   gae_lambda: 0.9
+  use_gae: True
   gamma: 0.99
   value_loss_coef: 0.5
   entropy_coef: 0.001
@@ -59,11 +57,6 @@ algorithm:
   use_skip: False
   choose_start_pos: False
   sparse_rewards: False
-  adv_max_grad_norm: 0.5
-  adv_ppo_epoch: 8
-  adv_num_mini_batch: 4
-  adv_normalize_returns: False
-  adv_use_popart: False
   num_processes: 16
   num_env_steps: 2000000000
   num_steps: 2048
@@ -73,6 +66,7 @@ algorithm:
 
 architecture:
   recurrent_agent: False
+  recurrent_arch: lstm
   recurrent_adversary_env: False
   recurrent_hidden_size: 1
 
@@ -80,16 +74,23 @@ plr:
   use_plr: True
   level_replay_strategy: positive_value_loss
   level_replay_score_transform: rank
-  level_replay_prob: 0.0
+  level_replay_prob: 0.9
   level_replay_rho: 0.5
   level_replay_seed_buffer_size: 1000
   staleness_coef: 0.5
-  no_exploratory_grad_updates: False
+  no_exploratory_grad_updates: True
+
+accel:
+  use_editor: True
+  level_editor_prob: 1.0
+  level_editor_method: random
+  num_edits: 3
+  base_levels: easy
 
 logging:
-  group_name: bipedal_diayn_dr_16
+  group_name: bipedal_smm_accel_4
   xpid: Adversarial
-  log_dir: ~/logs/dcd/bipedal/dr_diayn_16
+  log_dir: ~/logs/dcd/bipedal/accel_smm_4
   log_interval: 10
   test_interval: 100
   test_num_episodes: 10
@@ -102,4 +103,4 @@ logging:
   log_grad_norm: True
   checkpoint_basis: student_grad_updates
   archive_interval: 500
-  use_wandb: False
+  use_wandb: True

@@ -22,11 +22,7 @@ test_num_episodes: 10
 test_num_processes: 2
 test_env_names:
   - BipedalWalker-v3
-  # - BipedalWalkerHardcore-v3
-  # - BipedalWalker-Med-Stairs-v0
-  # - BipedalWalker-Med-PitGap-v0
-  # - BipedalWalker-Med-StumpHeight-v0
-  # - BipedalWalker-Med-Roughness-v0
+  - BipedalWalkerHardcore-v3
 
 # Environment arguments
 env_name: BipedalWalker-Adversarial-v0
@@ -35,16 +31,16 @@ singleton_env: False
 use_global_critic: False
 use_global_policy: False
 
-# DIAYN
+# SMM
 reward_free: True
-skill_dim: 16
+skill_dim: 4
 hidden_dim: 1024
 update_skill_every_step: True
 discriminator_dim: 14
 
 # Override algo values
 algorithm:
-  algo: diayn
+  algo: smm
   lr: 0.0003
   max_grad_norm: 0.5
   gae_lambda: 0.9
@@ -87,9 +83,9 @@ plr:
   no_exploratory_grad_updates: False
 
 logging:
-  group_name: bipedal_diayn_dr_16
+  group_name: bipedal_smm_dr_4
   xpid: Adversarial
-  log_dir: ~/logs/dcd/bipedal/dr_diayn_16
+  log_dir: ~/logs/dcd/bipedal/dr_smm_4
   log_interval: 10
   test_interval: 100
   test_num_episodes: 10
@@ -102,4 +98,4 @@ logging:
   log_grad_norm: True
   checkpoint_basis: student_grad_updates
   archive_interval: 500
-  use_wandb: False
+  use_wandb: True

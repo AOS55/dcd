@@ -3,8 +3,8 @@ defaults:
 
 # Running options
 num_processes: 1
-max_num_processes: 20
-num_episodes: 2
+max_num_processes: 1
+num_episodes: 1
 no_cuda: True
 log_dir: "~/logs/dcd/bipedal/dr"
 result_path: "eval_results/bipedal_dr"

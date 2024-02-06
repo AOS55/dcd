@@ -3,16 +3,16 @@ defaults:
 
 # Running options
 num_processes: 1
-max_num_processes: 1
-num_episodes: 8
-skill_dim: 8
+max_num_processes: 20
+num_episodes: 16
 no_cuda: True
-log_dir: "~/logs/dcd/bipedal/dr_diayn_8"
-result_path: "eval_results/bipedal_diayn_dr_8"
+log_dir: "~/logs/dcd/bipedal/accel"
+result_path: "eval_results/bipedal_accel"
 prefix: test
 xpid: Adversarial
-model_tar: model_20000
+model_tar: model_10000
 model_name: agent
+skill_dim: 0
 
 test_env_names:
   - BipedalWalker-v3
@@ -29,4 +29,4 @@ verbose: True
 show_progress: True
 render: True
 accumulator: False
-reward_free: True
+reward_free: False
