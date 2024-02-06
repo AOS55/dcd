@@ -532,13 +532,19 @@ class AdversarialRunner(object):
                     if type(obs) == dict:
                         for k in obs.keys():
                             obs[k] = obs[k].to(self.device)
-                        reward = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
+                        if self.cfg.algorithm.algo == "smm":
+                            reward, metrics = agent.algo.compute_intrinsic_reward(obs, skill["skill"], reward)
+                        else:
+                            reward, metrics = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
                         obs = {**obs, **skill}
                     else:
                         obs = obs.to(self.device)
-                        reward = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
+                        if self.cfg.algorithm.algo == "smm":
+                            reward, metrics = agent.algo.compute_intrinsic_reward(obs, skill["skill"], reward)
+                        else:
+                            reward, metrics = agent.algo.compute_intrinsic_reward(obs, skill["skill"])
                         obs = torch.concat((obs, skill['skill'].to(self.device)), axis=1)
-
+                    rollout_info.update(metrics)
 
             if not is_env and step >= num_steps - 1:
                 # Handle early termination due to cliffhanger rollout
@@ -903,6 +909,14 @@ class AdversarialRunner(object):
             'adversary_pg_loss': adversary_agent_info['action_loss'],
             'adversary_dist_entropy': adversary_agent_info['dist_entropy'],
         })
+
+        if cfg.reward_free:
+            stats.update({
+                'extr_reward': agent_info['extr_reward'].mean().item(),
+                'h_s_z': agent_info['h_s_z'].mean().item(),
+                'h_z_s': agent_info['h_z_s'].mean().item(),
+                'h_z': agent_info['h_z'].mean().item()
+            })
 
         if cfg.logging.log_grad_norm:
             agent_grad_norm = np.mean(agent_info['update_info']['grad_norms'])
