@@ -265,7 +265,7 @@ class Workspace:
                         archive_interval=self.cfg.logging.archive_interval)
         logging.info("Saved checkpoint to %s", self.checkpoint_path)
 
-@hydra.main(config_path='conf/.', config_name='mg_25b_diayn_dr', version_base="1.1")
+@hydra.main(config_path='conf/.', config_name='bipedal_smm_dr', version_base="1.1")
 def main(cfg):
     from train import Workspace as W
     workspace = W(cfg)
