@@ -582,8 +582,9 @@ class AdversarialRunner(object):
                             level = self.level_store.get_level(level_seed)
                             obs_i = self.venv.reset_to_level(level, i)
                             if self.cfg.reward_free:
-                                skill_i = agent.algo.init_meta(1)
-                                obs_i = {**obs_i, **skill_i}
+                                skill_i = agent.algo.init_meta(1)['skill']
+                                # print(f'obs_i: {obs_i}, skill_i: {skill_i}')
+                                obs_i = torch.concat((obs_i, skill_i), axis=1)
                             set_obs_at_index(obs, obs_i, i)
                             next_level_seeds[i] = level_seed
                             rollout_info['solved_idx'][i] = True
